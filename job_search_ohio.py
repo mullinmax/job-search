@@ -7,7 +7,12 @@ using the JobSpy library and exports results to a CSV file.
 """
 
 import csv
+import os
+
+import pandas as pd
 from jobspy import scrape_jobs
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 def main():
@@ -48,20 +53,49 @@ def main():
         return
 
     # Combine results
-    import pandas as pd
     jobs = pd.concat(jobs, ignore_index=True)
 
     # Output a quick summary
     print(f"Found {len(jobs)} total job postings.")
     print(jobs.head())
 
-    # Save to CSV
+    # Save to CSV with similarity information
     output_file = "senior_data_engineer_jobs_ohio.csv"
-    jobs.to_csv(
+
+    if os.path.exists(output_file):
+        existing = pd.read_csv(output_file)
+
+        def build_text(df: pd.DataFrame) -> pd.Series:
+            return (
+                df.get("title", "").fillna("")
+                + " "
+                + df.get("company", "").fillna("")
+                + " "
+                + df.get("description", "").fillna("")
+            )
+
+        existing_text = build_text(existing)
+        new_text = build_text(jobs)
+        vectorizer = TfidfVectorizer()
+        vectors = vectorizer.fit_transform(existing_text.tolist() + new_text.tolist())
+        existing_vecs = vectors[: len(existing_text)]
+        new_vecs = vectors[len(existing_text) :]
+        sim_matrix = cosine_similarity(new_vecs, existing_vecs)
+        best_indices = sim_matrix.argmax(axis=1)
+        best_scores = sim_matrix.max(axis=1)
+        jobs["most_similar_post"] = existing.iloc[best_indices]["title"].values
+        jobs["similarity_score"] = best_scores
+        combined = pd.concat([existing, jobs], ignore_index=True)
+    else:
+        jobs["most_similar_post"] = ""
+        jobs["similarity_score"] = None
+        combined = jobs
+
+    combined.to_csv(
         output_file,
         quoting=csv.QUOTE_NONNUMERIC,
         escapechar="\\",
-        index=False
+        index=False,
     )
     print(f"Saved results to {output_file}")
 
