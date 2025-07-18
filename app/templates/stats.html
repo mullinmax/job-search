@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Job Stats{% endblock %}
+{% block content %}
+<h1>Job Rankings</h1>
+<table class="stats-table">
+  <tr><th>#</th><th>Title</th><th>Company</th><th>ELO</th></tr>
+  {% for j in jobs %}
+  <tr>
+    <td>{{ loop.index }}</td>
+    <td>{{ j.title }}</td>
+    <td>{{ j.company }}</td>
+    <td>{{ '%.0f'|format(j.elo) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

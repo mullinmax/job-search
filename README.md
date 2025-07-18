@@ -1,30 +1,26 @@
-# Job Search Ohio
+# Job Ranker
 
-This repository contains a simple Python script to search for **Senior Data Engineer** positions in Ohio using the [JobSpy](https://github.com/pavinjohnson/python-jobspy) library.
-
-The script queries multiple job boards and saves the results to a CSV file for further analysis.
-
-## Requirements
-
-- Python 3.10+
-- Dependencies listed in `requirements.txt`
-
-Install dependencies via pip:
-
-```bash
-pip install -r requirements.txt
-```
+This project lets you fetch job postings from multiple sites and quickly swipe through them, storing feedback and a simple ELO ranking.
 
 ## Usage
 
-Run the script to fetch the latest listings:
+1. Build the Docker image:
 
 ```bash
-python job_search_ohio.py
+docker build -t job-ranker .
 ```
 
-This will search Indeed, LinkedIn, ZipRecruiter, Glassdoor, and Google Jobs for "Senior Data Engineer" roles located in Ohio. The results will be written to `senior_data_engineer_jobs_ohio.csv` in the repository directory.
+2. Run the container:
 
-When run multiple times, the script compares new postings against those already saved in the CSV. For each new entry it adds `most_similar_post` and `similarity_score` columns indicating the closest previous listing and the cosine similarity score.
+```bash
+docker run -p 8000:8000 job-ranker
+```
 
-Feel free to modify the script or search parameters to suit your needs.
+3. Visit `http://localhost:8000` to enter search terms and fetch jobs.
+   After results are saved you can swipe through postings one at a time
+   using the green ✓ button to mark a good match or the red ✖ button to
+   reject it. When rejecting a job you will be asked to provide a reason.
+   Feedback and rankings are stored in a SQLite database inside the container.
+
+The application uses [JobSpy](https://pypi.org/project/python-jobspy/) to scrape
+job boards and FastAPI for the web interface.

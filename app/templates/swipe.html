@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Swipe Jobs{% endblock %}
+{% block content %}
+<h1>Is this job a good fit?</h1>
+<div class="job-card single">
+  <h2 class="job-title">{{ job.title }}</h2>
+  <p class="job-company">{{ job.company }}</p>
+  <p class="job-location">{{ job.location }}</p>
+  <p class="job-source">{{ job.site }}</p>
+  {% if job.min_amount %}
+  <p class="job-salary">{{ job.min_amount }} - {{ job.max_amount }} {{ job.currency }}</p>
+  {% endif %}
+  <p class="job-desc">{{ job.description[:200] }}...</p>
+  <div class="swipe-buttons">
+    <form method="post" action="/feedback">
+      <input type="hidden" name="job_id" value="{{ job.id }}" />
+      <input type="hidden" name="liked" value="1" />
+      <button class="good" type="submit">✔</button>
+    </form>
+    <a class="bad" href="/reject/{{ job.id }}">✖</a>
+  </div>
+</div>
+{% endblock %}
