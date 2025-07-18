@@ -1,3 +1,6 @@
 python-jobspy
 pandas
 scikit-learn
+fastapi
+uvicorn
+jinja2

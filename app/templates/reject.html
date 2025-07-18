@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Why Not?{% endblock %}
+{% block content %}
+<h1>Why isn't this job a good fit?</h1>
+<div class="job-card single">
+  <h2 class="job-title">{{ job.title }}</h2>
+  <p class="job-company">{{ job.company }}</p>
+  <p class="job-location">{{ job.location }}</p>
+</div>
+<form method="post" action="/feedback">
+  <input type="hidden" name="job_id" value="{{ job.id }}" />
+  <input type="hidden" name="liked" value="0" />
+  <label>Reason:<br><textarea name="reason" rows="4" cols="50" required></textarea></label>
+  <br><button class="bad" type="submit">Submit</button>
+</form>
+{% endblock %}
