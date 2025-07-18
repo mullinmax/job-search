@@ -7,12 +7,12 @@ The script queries multiple job boards and saves the results to a CSV file for f
 ## Requirements
 
 - Python 3.10+
-- `python-jobspy` package
+- Dependencies listed in `requirements.txt`
 
 Install dependencies via pip:
 
 ```bash
-pip install -U python-jobspy
+pip install -r requirements.txt
 ```
 
 ## Usage
@@ -24,5 +24,7 @@ python job_search_ohio.py
 ```
 
 This will search Indeed, LinkedIn, ZipRecruiter, Glassdoor, and Google Jobs for "Senior Data Engineer" roles located in Ohio. The results will be written to `senior_data_engineer_jobs_ohio.csv` in the repository directory.
+
+When run multiple times, the script compares new postings against those already saved in the CSV. For each new entry it adds `most_similar_post` and `similarity_score` columns indicating the closest previous listing and the cosine similarity score.
 
 Feel free to modify the script or search parameters to suit your needs.
