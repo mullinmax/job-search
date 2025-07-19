@@ -11,8 +11,11 @@
     {% if job.min_amount %}
     <p class="mb-1">{{ format_salary(job.min_amount, job.max_amount, job.currency) }}</p>
     {% endif %}
+    {% if job.summary %}
+    <div class="ai-summary mb-3">{{ job.summary | safe }}</div>
+    {% endif %}
     {% if job.description %}
-    <div class="job-desc flex-grow-1">{{ job.description | safe }}</div>
+    <div class="original-desc job-desc flex-grow-1">{{ job.description | safe }}</div>
     {% else %}
     <p>No description available.</p>
     {% endif %}
