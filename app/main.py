@@ -18,7 +18,12 @@ from jobspy import scrape_jobs
 
 DATABASE = os.environ.get("DATABASE", "jobs.db")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
+
+# Allow separate models for embeddings and rephrasing while keeping backwards
+# compatibility with the original `OLLAMA_MODEL` variable.
+_default_model = os.environ.get("OLLAMA_MODEL", "llama3")
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", _default_model)
+OLLAMA_REPHRASE_MODEL = os.environ.get("OLLAMA_REPHRASE_MODEL", _default_model)
 OLLAMA_ENABLED = bool(OLLAMA_BASE_URL)
 
 app = FastAPI()
@@ -59,10 +64,11 @@ Rewrite the following description keeping the structure above:
 def ensure_model_downloaded() -> None:
     if not OLLAMA_ENABLED:
         return
-    try:
-        requests.post(f"{OLLAMA_BASE_URL}/api/pull", json={"name": OLLAMA_MODEL}, timeout=120)
-    except Exception as exc:
-        logger.info(f"Failed to pull model {OLLAMA_MODEL}: {exc}")
+    for model in {OLLAMA_EMBED_MODEL, OLLAMA_REPHRASE_MODEL}:
+        try:
+            requests.post(f"{OLLAMA_BASE_URL}/api/pull", json={"name": model}, timeout=120)
+        except Exception as exc:
+            logger.info(f"Failed to pull model {model}: {exc}")
 
 
 def embed_text(text: str) -> List[float]:
@@ -71,7 +77,7 @@ def embed_text(text: str) -> List[float]:
     try:
         r = requests.post(
             f"{OLLAMA_BASE_URL}/api/embeddings",
-            json={"model": OLLAMA_MODEL, "prompt": text},
+            json={"model": OLLAMA_EMBED_MODEL, "prompt": text},
             timeout=120,
         )
         r.raise_for_status()
@@ -88,7 +94,7 @@ def generate_summary(text: str) -> str:
     try:
         r = requests.post(
             f"{OLLAMA_BASE_URL}/api/generate",
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False},
             timeout=120,
         )
         r.raise_for_status()
