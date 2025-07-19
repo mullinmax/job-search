@@ -85,7 +85,8 @@ def save_jobs(df: pd.DataFrame) -> None:
         "currency": None,
         "job_url": None,
     }
-    df = df[list(cols.keys()) & df.columns]
+    # Keep only the columns we know about
+    df = df.loc[:, df.columns.intersection(cols.keys())]
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
     for _, row in df.iterrows():
