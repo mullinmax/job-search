@@ -14,4 +14,25 @@
   </tr>
   {% endfor %}
 </table>
+
+<h2 class="mt-5">Aggregate Stats</h2>
+<p>Total jobs stored: {{ stats.total_jobs }}</p>
+
+<h3>Roles per Source</h3>
+<table class="table table-sm">
+  <tr><th>Site</th><th>Count</th></tr>
+  {% for site, count in stats.by_site.items() %}
+  <tr><td>{{ site }}</td><td>{{ count }}</td></tr>
+  {% endfor %}
+</table>
+
+<h3>Posts by Date</h3>
+<table class="table table-sm">
+  <tr><th>Date</th><th>Count</th></tr>
+  {% for date, count in stats.by_date.items() %}
+  <tr><td>{{ date }}</td><td>{{ count }}</td></tr>
+  {% endfor %}
+</table>
+
+<p>Average salary (where provided): {{ format_salary(stats.avg_min_pay, stats.avg_max_pay, 'USD') }}</p>
 {% endblock %}
