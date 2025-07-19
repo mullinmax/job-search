@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Job Feedback{% endblock %}
 {% block content %}
-<h1>Liked Jobs</h1>
+<h1 class="mb-4">Liked Jobs</h1>
 <table class="stats-table">
   <tr><th>#</th><th>Title</th><th>Company</th></tr>
   {% for j in liked %}
@@ -13,7 +13,7 @@
   {% endfor %}
 </table>
 
-<h1>Rejected Jobs</h1>
+<h1 class="mb-4">Rejected Jobs</h1>
 <table class="stats-table">
   <tr><th>#</th><th>Title</th><th>Company</th></tr>
   {% for j in rejected %}
