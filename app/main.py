@@ -190,6 +190,7 @@ def fetch_jobs_task(search_term: str, location: str, sites: List[str]) -> None:
                 results_wanted=50,
                 hours_old=168,
                 description_format="html",
+                linkedin_fetch_description=site == "linkedin",
                 verbose=1,
             )
             jobs.append(df)

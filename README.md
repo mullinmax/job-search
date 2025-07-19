@@ -45,4 +45,6 @@ docker compose up
    Feedback is stored in a SQLite database inside the container to help train a future matching model.
 
 The application uses [JobSpy](https://pypi.org/project/python-jobspy/) to scrape
-job boards and FastAPI for the web interface.
+job boards and FastAPI for the web interface. If LinkedIn descriptions are
+missing, the scraper now passes `linkedin_fetch_description=True` which visits
+each LinkedIn job page to pull the full text.

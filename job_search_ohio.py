@@ -42,6 +42,7 @@ def main():
                 results_wanted=50,           # number of results per site
                 hours_old=168,               # only listings posted in the last 7 days
                 description_format="markdown",
+                linkedin_fetch_description=site == "linkedin",
                 verbose=1
             )
             jobs.append(data)
