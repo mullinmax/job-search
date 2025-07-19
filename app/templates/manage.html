@@ -5,6 +5,9 @@
 <form method="post" action="/cleanup" onsubmit="return confirm('Delete matching jobs?');">
   <button class="btn btn-danger" type="submit">Clean Database</button>
 </form>
+<form class="mt-3" method="post" action="/reprocess" onsubmit="return confirm('Recreate all summaries and embeddings?');">
+  <button class="btn btn-warning" type="submit">Recreate AI Data</button>
+</form>
 {% if deleted is not none %}
 <p class="mt-3">{{ deleted }} jobs deleted.</p>
 {% endif %}
