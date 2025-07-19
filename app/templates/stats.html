@@ -3,14 +3,22 @@
 {% block content %}
 <h1 class="mb-4">Job Feedback</h1>
 <table class="table table-striped">
-  <tr><th>#</th><th>Title</th><th>Company</th><th>Likes</th><th>Dislikes</th></tr>
+  <tr><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th></th></tr>
   {% for j in jobs %}
   <tr>
     <td>{{ loop.index }}</td>
     <td><a href="{{ j.job_url }}" target="_blank" rel="noopener">{{ j.title }}</a></td>
     <td>{{ j.company }}</td>
-    <td>{{ j.likes }}</td>
-    <td>{{ j.dislikes }}</td>
+    <td>{{ time_since_posted(j.date_posted) }}</td>
+    <td>
+      {% if j.likes > j.dislikes %}
+      <span class="text-success">✔</span>
+      {% elif j.dislikes > j.likes %}
+      <span class="text-danger">✖</span>
+      {% else %}
+      -
+      {% endif %}
+    </td>
   </tr>
   {% endfor %}
 </table>

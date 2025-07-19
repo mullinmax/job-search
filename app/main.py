@@ -36,6 +36,56 @@ def format_salary(min_amount: float, max_amount: float, currency: str) -> str:
 
 templates.env.globals["format_salary"] = format_salary
 
+
+def time_since_posted(date_str: str) -> str:
+    """Return relative age like '2d' or '1w 3d' for the given date string."""
+    if not date_str:
+        return ""
+
+    date_str = str(date_str).lower().strip()
+    now = pd.Timestamp.utcnow()
+
+    # Handle common relative phrases
+    import re
+
+    m = re.search(r"(\d+)\s*day", date_str)
+    if m:
+        days = int(m.group(1))
+    else:
+        m = re.search(r"(\d+)\s*week", date_str)
+        if m:
+            days = int(m.group(1)) * 7
+        else:
+            m = re.search(r"(\d+)\s*month", date_str)
+            if m:
+                days = int(m.group(1)) * 30
+            else:
+                if "today" in date_str or "just" in date_str:
+                    days = 0
+                elif "yesterday" in date_str:
+                    days = 1
+                else:
+                    try:
+                        dt = pd.to_datetime(date_str, utc=True, errors="coerce")
+                        if pd.isna(dt):
+                            return ""
+                        days = (now - dt).days
+                    except Exception:
+                        return ""
+
+    if days < 7:
+        return f"{days}d"
+    weeks = days // 7
+    days = days % 7
+    if weeks < 4:
+        return f"{weeks}w {days}d" if days else f"{weeks}w"
+    months = weeks // 4
+    weeks = weeks % 4
+    return f"{months}m {weeks}w" if weeks else f"{months}m"
+
+
+templates.env.globals["time_since_posted"] = time_since_posted
+
 def log_progress(message: str) -> None:
     """Log a progress message to the logger and internal buffer."""
     logger.info(message)
