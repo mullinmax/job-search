@@ -308,17 +308,41 @@ def get_random_job() -> Optional[Dict]:
     return None
 
 
+def get_job(job_id: int) -> Optional[Dict]:
+    """Return a job by id including any summary."""
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT j.*, s.summary FROM jobs j
+        LEFT JOIN summaries s ON j.id = s.job_id
+        WHERE j.id=?
+        """,
+        (job_id,),
+    )
+    row = cur.fetchone()
+    columns = [c[0] for c in cur.description]
+    conn.close()
+    if row:
+        return dict(zip(columns, row))
+    return None
+
+
 def list_jobs_by_feedback() -> List[Dict]:
     """Return jobs ordered by number of positive ratings."""
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT j.*, 
+        SELECT j.*,
                COALESCE(SUM(CASE WHEN f.liked=1 THEN 1 ELSE 0 END), 0) AS likes,
-               COALESCE(SUM(CASE WHEN f.liked=0 THEN 1 ELSE 0 END), 0) AS dislikes
+               COALESCE(SUM(CASE WHEN f.liked=0 THEN 1 ELSE 0 END), 0) AS dislikes,
+               CASE WHEN s.job_id IS NOT NULL THEN 1 ELSE 0 END AS has_summary,
+               CASE WHEN e.job_id IS NOT NULL THEN 1 ELSE 0 END AS has_embedding
         FROM jobs j
         LEFT JOIN feedback f ON j.id = f.job_id
+        LEFT JOIN summaries s ON j.id = s.job_id
+        LEFT JOIN embeddings e ON j.id = e.job_id
         GROUP BY j.id
         ORDER BY likes DESC
         """
@@ -348,6 +372,11 @@ def aggregate_job_stats() -> Dict:
     )
     avg_min, avg_max = cur.fetchone()
 
+    cur.execute("SELECT COUNT(*) FROM summaries")
+    summaries_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM embeddings")
+    embeddings_count = cur.fetchone()[0]
+
     conn.close()
     return {
         "total_jobs": total_jobs,
@@ -355,6 +384,8 @@ def aggregate_job_stats() -> Dict:
         "by_date": by_date,
         "avg_min_pay": avg_min or 0,
         "avg_max_pay": avg_max or 0,
+        "jobs_with_summaries": summaries_count,
+        "jobs_with_embeddings": embeddings_count,
     }
 
 
@@ -456,8 +487,8 @@ def progress() -> JSONResponse:
 
 
 @app.get("/swipe", response_class=HTMLResponse)
-def swipe(request: Request):
-    job = get_random_job()
+def swipe(request: Request, job_id: Optional[int] = None):
+    job = get_job(job_id) if job_id else get_random_job()
     if not job:
         return templates.TemplateResponse("no_jobs.html", {"request": request})
     return templates.TemplateResponse("swipe.html", {"request": request, "job": job})

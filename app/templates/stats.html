@@ -3,13 +3,20 @@
 {% block content %}
 <h1 class="mb-4">Job Feedback</h1>
 <table class="table table-striped">
-  <tr><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th></th></tr>
+  <tr><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th>AI</th><th></th></tr>
   {% for j in jobs %}
   <tr>
     <td>{{ loop.index }}</td>
-    <td><a href="{{ j.job_url }}" target="_blank" rel="noopener">{{ j.title }}</a></td>
+    <td>
+      <a href="{{ j.job_url }}" target="_blank" rel="noopener">{{ j.title }}</a>
+      <a class="ms-2" href="/swipe?job_id={{ j.id }}">[view]</a>
+    </td>
     <td>{{ j.company }}</td>
     <td>{{ time_since_posted(j.date_posted) }}</td>
+    <td>
+      <span class="me-1">{% if j.has_summary %}<span class="text-success">S</span>{% else %}<span class="text-danger">S</span>{% endif %}</span>
+      <span>{% if j.has_embedding %}<span class="text-success">E</span>{% else %}<span class="text-danger">E</span>{% endif %}</span>
+    </td>
     <td>
       {% if j.likes > j.dislikes %}
       <span class="text-success">✔</span>
@@ -25,6 +32,8 @@
 
 <h2 class="mt-5">Aggregate Stats</h2>
 <p>Total jobs stored: {{ stats.total_jobs }}</p>
+<p>Jobs with summaries: {{ stats.jobs_with_summaries }}</p>
+<p>Jobs with embeddings: {{ stats.jobs_with_embeddings }}</p>
 
 <h3>Roles per Source</h3>
 <table class="table table-sm">
