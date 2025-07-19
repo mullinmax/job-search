@@ -44,17 +44,18 @@ Rewrite the following job description into concise Markdown without preamble.
 Omit any sections that cannot be filled from the text. Use this structure:
 
 ---
-**Company:** short overview
-
 **Technical Requirements**
+
 - item one
 - item two
 
 **Soft Skills**
+
 - item one
 - item two
 
 **Description**
+
 A short paragraph summarizing the role.
 ---
 
@@ -121,6 +122,12 @@ def render_markdown(text: str) -> str:
         return ""
     lines = [ln for ln in text.splitlines() if ln.strip() != "---"]
     cleaned = "\n".join(lines)
+    fixed = []
+    for ln in cleaned.splitlines():
+        if ln.lstrip().startswith("-") and fixed and fixed[-1].strip():
+            fixed.append("")
+        fixed.append(ln)
+    cleaned = "\n".join(fixed)
     return markdown(cleaned)
 
 

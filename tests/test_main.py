@@ -282,6 +282,12 @@ def test_render_markdown(main):
     assert "---" not in html
 
 
+def test_render_markdown_lists(main):
+    text = "**Technical Requirements**\n- a\n- b"
+    html = main.render_markdown(text)
+    assert html.count("<li>") == 2
+
+
 def test_clear_ai_data_and_reprocess_tasks(main, monkeypatch):
     main.init_db()
     df = pd.DataFrame([
