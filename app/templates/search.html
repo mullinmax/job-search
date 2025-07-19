@@ -1,16 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Fetch Jobs{% endblock %}
 {% block content %}
-<h1>Fetch Job Postings</h1>
+<h1 class="mb-4">Fetch Job Postings</h1>
 <form method="post" action="/fetch">
-  <label>Search term:<br><input type="text" name="search_term" required></label><br>
-  <label>Location:<br><input type="text" name="location" required></label><br>
-  <label>Sources:</label><br>
-  <label><input type="checkbox" name="sites" value="linkedin" checked>LinkedIn</label>
-  <label><input type="checkbox" name="sites" value="indeed" checked>Indeed</label>
-  <label><input type="checkbox" name="sites" value="zip_recruiter" checked>ZipRecruiter</label>
-  <label><input type="checkbox" name="sites" value="glassdoor" checked>Glassdoor</label>
-  <label><input type="checkbox" name="sites" value="google" checked>Google</label>
-  <br><button type="submit">Fetch</button>
+  <div class="mb-3">
+    <label class="form-label">Search term</label>
+    <input type="text" name="search_term" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Location</label>
+    <input type="text" name="location" class="form-control" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Sources</label>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="src-linkedin" name="sites" value="linkedin" checked>
+      <label class="form-check-label" for="src-linkedin">LinkedIn</label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="src-indeed" name="sites" value="indeed" checked>
+      <label class="form-check-label" for="src-indeed">Indeed</label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="src-zip" name="sites" value="zip_recruiter" checked>
+      <label class="form-check-label" for="src-zip">ZipRecruiter</label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="src-glassdoor" name="sites" value="glassdoor" checked>
+      <label class="form-check-label" for="src-glassdoor">Glassdoor</label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="src-google" name="sites" value="google" checked>
+      <label class="form-check-label" for="src-google">Google</label>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary">Fetch</button>
 </form>
 {% endblock %}

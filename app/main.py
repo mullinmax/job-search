@@ -18,7 +18,7 @@ DATABASE = os.environ.get("DATABASE", "jobs.db")
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
-BUILD_NUMBER = os.environ.get("BUILD_NUMBER", "dev")
+BUILD_NUMBER = os.environ.get("GITHUB_RUN_NUMBER") or os.environ.get("BUILD_NUMBER", "dev")
 templates.env.globals["build_number"] = BUILD_NUMBER
 
 # Store progress messages for the fetch process
