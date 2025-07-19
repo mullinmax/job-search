@@ -146,6 +146,35 @@ def list_jobs_by_feedback() -> List[Dict]:
     return [dict(zip(columns, r)) for r in rows]
 
 
+def aggregate_job_stats() -> Dict:
+    """Return aggregate statistics about the stored jobs."""
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM jobs")
+    total_jobs = cur.fetchone()[0]
+
+    cur.execute("SELECT site, COUNT(*) FROM jobs GROUP BY site")
+    by_site = {site: count for site, count in cur.fetchall()}
+
+    cur.execute("SELECT date_posted, COUNT(*) FROM jobs GROUP BY date_posted")
+    by_date = {date: count for date, count in cur.fetchall()}
+
+    cur.execute(
+        "SELECT AVG(min_amount), AVG(max_amount) FROM jobs WHERE min_amount IS NOT NULL AND max_amount IS NOT NULL"
+    )
+    avg_min, avg_max = cur.fetchone()
+
+    conn.close()
+    return {
+        "total_jobs": total_jobs,
+        "by_site": by_site,
+        "by_date": by_date,
+        "avg_min_pay": avg_min or 0,
+        "avg_max_pay": avg_max or 0,
+    }
+
+
 def increment_rating_count(job_id: int) -> None:
     """Increment the rating count for a job."""
     conn = sqlite3.connect(DATABASE)
@@ -266,7 +295,10 @@ def feedback(job_id: int = Form(...), liked: int = Form(...), reason: str = Form
 @app.get("/stats", response_class=HTMLResponse)
 def stats(request: Request):
     jobs = list_jobs_by_feedback()
-    return templates.TemplateResponse("stats.html", {"request": request, "jobs": jobs})
+    agg = aggregate_job_stats()
+    return templates.TemplateResponse(
+        "stats.html", {"request": request, "jobs": jobs, "stats": agg}
+    )
 
 
 def cleanup_jobs() -> int:

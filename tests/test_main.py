@@ -223,3 +223,55 @@ def test_cleanup_jobs(main):
     assert deleted == 2
     assert count == 1
 
+
+def test_aggregate_job_stats(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "a",
+            "title": "T1",
+            "company": "C1",
+            "location": "L",
+            "date_posted": "2024-01-01",
+            "description": "d",
+            "interval": "year",
+            "min_amount": 100,
+            "max_amount": 200,
+            "currency": "USD",
+            "job_url": "http://x.com/1",
+        },
+        {
+            "site": "b",
+            "title": "T2",
+            "company": "C2",
+            "location": "L",
+            "date_posted": "2024-01-02",
+            "description": "d2",
+            "interval": "year",
+            "min_amount": 200,
+            "max_amount": 300,
+            "currency": "USD",
+            "job_url": "http://x.com/2",
+        },
+        {
+            "site": "a",
+            "title": "T3",
+            "company": "C3",
+            "location": "L",
+            "date_posted": "2024-01-01",
+            "description": "d3",
+            "interval": "year",
+            "min_amount": None,
+            "max_amount": None,
+            "currency": None,
+            "job_url": "http://x.com/3",
+        },
+    ])
+    main.save_jobs(df)
+    stats = main.aggregate_job_stats()
+    assert stats["total_jobs"] == 3
+    assert stats["by_site"] == {"a": 2, "b": 1}
+    assert stats["by_date"] == {"2024-01-01": 2, "2024-01-02": 1}
+    assert stats["avg_min_pay"] == pytest.approx(150)
+    assert stats["avg_max_pay"] == pytest.approx(250)
+
