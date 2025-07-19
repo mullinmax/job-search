@@ -60,14 +60,14 @@ def test_save_and_get_random_job(main):
     assert job["company"] == "ACME"
 
 
-def test_update_elo_single(main):
+def test_increment_rating_count(main):
     main.init_db()
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url,elo,rating_count)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,1000,0)
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url,rating_count)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,0)
         """,
         (
             "test",
@@ -87,13 +87,12 @@ def test_update_elo_single(main):
     conn.commit()
     conn.close()
 
-    main.update_elo_single(job_id, True)
+    main.increment_rating_count(job_id)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
-    cur.execute("SELECT elo, rating_count FROM jobs WHERE id=?", (job_id,))
-    elo, count = cur.fetchone()
+    cur.execute("SELECT rating_count FROM jobs WHERE id=?", (job_id,))
+    count = cur.fetchone()[0]
     conn.close()
-    assert round(elo, 2) == 1016.0
     assert count == 1
 
 
