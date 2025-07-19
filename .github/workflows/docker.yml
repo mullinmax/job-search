@@ -26,6 +26,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.run_number }}
+          build-args: BUILD_NUMBER=${{ github.run_number }}
       - name: Trigger Portainer update
         run: curl -X POST https://portainer.braed.co/api/stacks/webhooks/8df2ec72-3c52-42cd-a9ec-d06961cf5a22
