@@ -43,6 +43,8 @@ docker compose up
    using the green ✓ button to mark a good match or the red ✖ button to
    reject it. When rejecting a job you will be asked to provide a reason.
    Feedback is stored in a SQLite database inside the container to help train a future matching model.
+   If any job boards fail to fetch (for example due to network restrictions) the
+   progress screen now shows detailed logs so you can see which sources were skipped.
 
 The application uses [JobSpy](https://pypi.org/project/python-jobspy/) to scrape
 job boards and FastAPI for the web interface. If LinkedIn descriptions are
