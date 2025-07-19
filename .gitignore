@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.sqlite
+.Python
+build/
+.eggs/
+*.egg-info/
+.installed.cfg
+*.egg
+# pytest
+.pytest_cache/
+# Packaging
+pip-wheel-metadata/
