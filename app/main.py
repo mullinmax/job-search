@@ -1,12 +1,15 @@
 import os
 import sqlite3
 import time
+import json
 from typing import List, Dict, Optional
 
 import logging
 from collections import deque
+from threading import Thread
 
 import pandas as pd
+import requests
 from fastapi import FastAPI, Form, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,6 +17,9 @@ from fastapi.templating import Jinja2Templates
 from jobspy import scrape_jobs
 
 DATABASE = os.environ.get("DATABASE", "jobs.db")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
+OLLAMA_ENABLED = bool(OLLAMA_BASE_URL)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -25,6 +31,103 @@ templates.env.globals["build_number"] = BUILD_NUMBER
 logger = logging.getLogger("job_fetch")
 logging.basicConfig(level=logging.INFO)
 progress_logs = deque(maxlen=100)
+
+REWRITE_PROMPT_TEMPLATE = '''
+You are standardizing job descriptions. Separate the company overview from the
+requirements. Provide bullet lists for technical requirements and soft skills.
+
+Example original:
+"""ACME needs a developer proficient in Python and React. You'll work with a
+small team and must communicate clearly."""
+
+Example rewritten:
+Company: ACME - short overview.
+
+Technical Requirements:
+- Python
+- React
+
+Soft Skills:
+- clear communication
+- teamwork
+
+Rewrite the following description keeping the structure above:
+"""{description}"""
+'''
+
+
+def ensure_model_downloaded() -> None:
+    if not OLLAMA_ENABLED:
+        return
+    try:
+        requests.post(f"{OLLAMA_BASE_URL}/api/pull", json={"name": OLLAMA_MODEL}, timeout=120)
+    except Exception as exc:
+        logger.info(f"Failed to pull model {OLLAMA_MODEL}: {exc}")
+
+
+def embed_text(text: str) -> List[float]:
+    if not OLLAMA_ENABLED:
+        return []
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/embeddings",
+            json={"model": OLLAMA_MODEL, "prompt": text},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json().get("embedding", [])
+    except Exception as exc:
+        logger.info(f"Embedding failed: {exc}")
+        return []
+
+
+def generate_summary(text: str) -> str:
+    if not OLLAMA_ENABLED:
+        return ""
+    prompt = REWRITE_PROMPT_TEMPLATE.format(description=text)
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json().get("response", "")
+    except Exception as exc:
+        logger.info(f"Summary generation failed: {exc}")
+        return ""
+
+
+def process_all_jobs() -> None:
+    if not OLLAMA_ENABLED:
+        return
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT id, description FROM jobs")
+    rows = cur.fetchall()
+    for job_id, desc in rows:
+        if not desc:
+            continue
+        cur.execute("SELECT 1 FROM summaries WHERE job_id=?", (job_id,))
+        have_sum = cur.fetchone()
+        cur.execute("SELECT 1 FROM embeddings WHERE job_id=?", (job_id,))
+        have_emb = cur.fetchone()
+        if have_sum and have_emb:
+            continue
+        summary = generate_summary(desc) if not have_sum else None
+        embedding = embed_text(desc) if not have_emb else None
+        if summary is not None:
+            cur.execute(
+                "INSERT OR IGNORE INTO summaries(job_id, summary) VALUES(?, ?)",
+                (job_id, summary),
+            )
+        if embedding is not None:
+            cur.execute(
+                "INSERT OR IGNORE INTO embeddings(job_id, embedding) VALUES(?, ?)",
+                (job_id, json.dumps(embedding)),
+            )
+        conn.commit()
+    conn.close()
 
 
 def format_salary(min_amount: float, max_amount: float, currency: str) -> str:
@@ -126,6 +229,22 @@ def init_db() -> None:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS embeddings(
+            job_id INTEGER PRIMARY KEY,
+            embedding TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS summaries(
+            job_id INTEGER PRIMARY KEY,
+            summary TEXT
+        )
+        """
+    )
     conn.commit()
     conn.close()
 
@@ -161,12 +280,20 @@ def save_jobs(df: pd.DataFrame) -> None:
         )
     conn.commit()
     conn.close()
+    if OLLAMA_ENABLED:
+        process_all_jobs()
 
 
 def get_random_job() -> Optional[Dict]:
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
-    cur.execute("SELECT * FROM jobs ORDER BY rating_count ASC, RANDOM() LIMIT 1")
+    cur.execute(
+        """
+        SELECT j.*, s.summary FROM jobs j
+        LEFT JOIN summaries s ON j.id = s.job_id
+        ORDER BY rating_count ASC, RANDOM() LIMIT 1
+        """
+    )
     row = cur.fetchone()
     columns = [c[0] for c in cur.description]
     conn.close()
@@ -280,12 +407,20 @@ def fetch_jobs_task(search_term: str, location: str, sites: List[str]) -> None:
         combined = pd.concat(jobs, ignore_index=True)
         save_jobs(combined)
         log_progress(f"Saved {len(combined)} jobs")
+        if OLLAMA_ENABLED:
+            process_all_jobs()
     log_progress("Done")
 
 
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    if OLLAMA_ENABLED:
+        def worker():
+            ensure_model_downloaded()
+            process_all_jobs()
+
+        Thread(target=worker, daemon=True).start()
 
 
 @app.get("/", response_class=HTMLResponse)

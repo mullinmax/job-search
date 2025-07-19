@@ -5,6 +5,8 @@ body { font-family: Arial, sans-serif; background: #f8f9fa; color: #333; padding
 .job-card { flex: 1; border: 1px solid #ccc; padding: 1rem; background: #fafafa; border-radius: 0.25rem; }
 .job-card.single { max-width: 800px; margin: auto; }
 .job-desc { max-height: none; overflow-y: visible; }
+.ai-summary { background: #eef; padding: 0.5rem; border-radius: 0.25rem; }
+.original-desc { border-top: 1px dashed #ccc; padding-top: 0.5rem; }
 .swipe-buttons { margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.9); padding: 0.5rem 1rem; border-radius: 0.25rem; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
 .good { background: #4caf50; color: #fff; border: none; padding: 0.5rem 1rem; font-size: 1.2rem; cursor: pointer; }
 .bad { background: #f44336; color: #fff; border: none; padding: 0.5rem 1rem; font-size: 1.2rem; text-decoration: none; display: inline-block; text-align: center; }
