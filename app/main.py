@@ -267,3 +267,38 @@ def feedback(job_id: int = Form(...), liked: int = Form(...), reason: str = Form
 def stats(request: Request):
     jobs = list_jobs_by_feedback()
     return templates.TemplateResponse("stats.html", {"request": request, "jobs": jobs})
+
+
+def cleanup_jobs() -> int:
+    """Delete jobs without a description and remove duplicate title/company entries."""
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM jobs WHERE description IS NULL OR description = ''")
+    deleted_missing = cur.rowcount
+
+    cur.execute(
+        """
+        DELETE FROM jobs
+        WHERE id NOT IN (
+            SELECT MIN(id) FROM jobs GROUP BY title, company
+        )
+        """
+    )
+    deleted_dupes = cur.rowcount
+    conn.commit()
+    conn.close()
+    return deleted_missing + deleted_dupes
+
+
+@app.get("/manage", response_class=HTMLResponse)
+def manage(request: Request):
+    return templates.TemplateResponse("manage.html", {"request": request, "deleted": None})
+
+
+@app.post("/cleanup", response_class=HTMLResponse)
+def cleanup(request: Request):
+    deleted = cleanup_jobs()
+    return templates.TemplateResponse(
+        "manage.html", {"request": request, "deleted": deleted}
+    )
