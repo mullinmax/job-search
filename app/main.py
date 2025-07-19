@@ -26,6 +26,16 @@ logger = logging.getLogger("job_fetch")
 logging.basicConfig(level=logging.INFO)
 progress_logs = deque(maxlen=100)
 
+
+def format_salary(min_amount: float, max_amount: float, currency: str) -> str:
+    """Return a salary range rounded to the nearest thousand with 'k' suffix."""
+    def to_k(val: float) -> str:
+        return f"{round(val / 1000):.0f}k"
+
+    return f"{to_k(min_amount)} - {to_k(max_amount)} {currency}"
+
+templates.env.globals["format_salary"] = format_salary
+
 def log_progress(message: str) -> None:
     """Log a progress message to the logger and internal buffer."""
     logger.info(message)

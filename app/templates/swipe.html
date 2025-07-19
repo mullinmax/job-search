@@ -2,17 +2,17 @@
 {% block title %}Swipe Jobs{% endblock %}
 {% block content %}
 <h1 class="mb-4">Is this job a good fit?</h1>
-<div class="card mb-4 mx-auto" style="max-width: 500px;">
-  <div class="card-body">
+<div class="card mb-4 mx-auto job-card single">
+  <div class="card-body d-flex flex-column">
     <h2 class="card-title">{{ job.title }}</h2>
     <p class="card-subtitle mb-2 text-muted">{{ job.company }}</p>
     <p class="mb-1">{{ job.location }}</p>
     <p class="mb-1">{{ job.site }}</p>
     {% if job.min_amount %}
-    <p class="mb-1">{{ job.min_amount }} - {{ job.max_amount }} {{ job.currency }}</p>
+    <p class="mb-1">{{ format_salary(job.min_amount, job.max_amount, job.currency) }}</p>
     {% endif %}
     {% if job.description %}
-    <p>{{ job.description[:200] }}...</p>
+    <div class="job-desc flex-grow-1">{{ job.description | safe }}</div>
     {% else %}
     <p>No description available.</p>
     {% endif %}
