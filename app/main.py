@@ -38,25 +38,25 @@ logging.basicConfig(level=logging.INFO)
 progress_logs = deque(maxlen=100)
 
 REWRITE_PROMPT_TEMPLATE = '''
-You are standardizing job descriptions. Separate the company overview from the
-requirements. Provide bullet lists for technical requirements and soft skills.
+Rewrite the following job description into concise Markdown without preamble.
+Omit any sections that cannot be filled from the text. Use this structure:
 
-Example original:
-"""ACME needs a developer proficient in Python and React. You'll work with a
-small team and must communicate clearly."""
+---
+**Company:** short overview
 
-Example rewritten:
-Company: ACME - short overview.
+**Technical Requirements**
+- item one
+- item two
 
-Technical Requirements:
-- Python
-- React
+**Soft Skills**
+- item one
+- item two
 
-Soft Skills:
-- clear communication
-- teamwork
+**Description**
+A short paragraph summarizing the role.
+---
 
-Rewrite the following description keeping the structure above:
+Job posting:
 """{description}"""
 '''
 
