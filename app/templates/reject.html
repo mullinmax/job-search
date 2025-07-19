@@ -13,6 +13,13 @@
   <input type="hidden" name="job_id" value="{{ job.id }}" />
   <input type="hidden" name="liked" value="0" />
   <div class="mb-3">
+    <label class="form-label">Quick Reasons</label>
+    <div class="d-flex flex-wrap gap-2">
+      <button class="btn btn-outline-danger" name="reason" value="no description" type="submit">No description</button>
+      <button class="btn btn-outline-danger" name="reason" value="no industry experience" type="submit">No industry experience</button>
+    </div>
+  </div>
+  <div class="mb-3">
     <label class="form-label">Reason</label>
     <textarea name="reason" rows="4" class="form-control" required></textarea>
   </div>
