@@ -4,6 +4,8 @@ import time
 import json
 from typing import List, Dict, Optional
 
+from markdown import markdown
+
 import logging
 from collections import deque
 from threading import Thread
@@ -102,7 +104,7 @@ def generate_summary(text: str) -> str:
                 "model": OLLAMA_REPHRASE_MODEL,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"num_ctx": 4096},
+                "options": {"num_ctx": 8192},
             },
             timeout=120,
         )
@@ -111,6 +113,15 @@ def generate_summary(text: str) -> str:
     except Exception as exc:
         logger.info(f"Summary generation failed: {exc}")
         return ""
+
+
+def render_markdown(text: str) -> str:
+    """Convert Markdown to HTML after stripping '---' delimiters."""
+    if not text:
+        return ""
+    lines = [ln for ln in text.splitlines() if ln.strip() != "---"]
+    cleaned = "\n".join(lines)
+    return markdown(cleaned)
 
 
 def process_all_jobs() -> None:
@@ -313,7 +324,10 @@ def get_random_job() -> Optional[Dict]:
     columns = [c[0] for c in cur.description]
     conn.close()
     if row:
-        return dict(zip(columns, row))
+        job = dict(zip(columns, row))
+        if job.get("summary"):
+            job["summary"] = render_markdown(job["summary"])
+        return job
     return None
 
 
@@ -333,7 +347,10 @@ def get_job(job_id: int) -> Optional[Dict]:
     columns = [c[0] for c in cur.description]
     conn.close()
     if row:
-        return dict(zip(columns, row))
+        job = dict(zip(columns, row))
+        if job.get("summary"):
+            job["summary"] = render_markdown(job["summary"])
+        return job
     return None
 
 
@@ -567,8 +584,8 @@ def cleanup(request: Request):
     )
 
 
-def reprocess_jobs_task() -> None:
-    """Delete existing summaries/embeddings and regenerate them."""
+def clear_ai_data_task() -> None:
+    """Delete all summaries and embeddings."""
     if not OLLAMA_ENABLED:
         return
     log_progress("Clearing summaries and embeddings")
@@ -578,7 +595,14 @@ def reprocess_jobs_task() -> None:
     cur.execute("DELETE FROM embeddings")
     conn.commit()
     conn.close()
-    log_progress("Regenerating data")
+    log_progress("Done")
+
+
+def reprocess_jobs_task() -> None:
+    """Generate AI data for roles missing it."""
+    if not OLLAMA_ENABLED:
+        return
+    log_progress("Generating data for missing jobs")
     process_all_jobs()
     log_progress("Done")
 
@@ -587,4 +611,11 @@ def reprocess_jobs_task() -> None:
 def reprocess(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
     background_tasks.add_task(reprocess_jobs_task)
+    return templates.TemplateResponse("progress.html", {"request": request})
+
+
+@app.post("/delete_ai", response_class=HTMLResponse)
+def delete_ai(request: Request, background_tasks: BackgroundTasks):
+    progress_logs.clear()
+    background_tasks.add_task(clear_ai_data_task)
     return templates.TemplateResponse("progress.html", {"request": request})

@@ -6,4 +6,5 @@ uvicorn
 jinja2
 python-multipart
 requests
+markdown
 pytest
