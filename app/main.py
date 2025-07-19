@@ -3,9 +3,12 @@ import sqlite3
 import time
 from typing import List, Dict, Optional
 
+import logging
+from collections import deque
+
 import pandas as pd
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Form, Request, BackgroundTasks
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jobspy import scrape_jobs
@@ -15,6 +18,17 @@ DATABASE = os.environ.get("DATABASE", "jobs.db")
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+# Store progress messages for the fetch process
+logger = logging.getLogger("job_fetch")
+logging.basicConfig(level=logging.INFO)
+progress_logs = deque(maxlen=100)
+
+def log_progress(message: str) -> None:
+    """Log a progress message to the logger and internal buffer."""
+    logger.info(message)
+    progress_logs.append(message)
+
 
 
 def init_db() -> None:
@@ -142,21 +156,12 @@ def record_feedback(job_id: int, liked: bool, reason: Optional[str]) -> None:
     conn.close()
 
 
-@app.on_event("startup")
-def on_startup() -> None:
-    init_db()
-
-
-@app.get("/", response_class=HTMLResponse)
-def search_form(request: Request):
-    return templates.TemplateResponse("search.html", {"request": request})
-
-
-@app.post("/fetch")
-def fetch_jobs(request: Request, search_term: str = Form(...), location: str = Form(...), sites: List[str] = Form(...)):
+def fetch_jobs_task(search_term: str, location: str, sites: List[str]) -> None:
+    """Background task to fetch job postings and store them."""
     google_term = f"{search_term} jobs in {location}"
     jobs: List[pd.DataFrame] = []
     for site in sites:
+        log_progress(f"Fetching from {site}")
         try:
             df = scrape_jobs(
                 site_name=site,
@@ -170,12 +175,45 @@ def fetch_jobs(request: Request, search_term: str = Form(...), location: str = F
                 verbose=1,
             )
             jobs.append(df)
+            log_progress(f"{site}: {len(df)} jobs")
         except Exception as exc:
-            print(f"Skipping {site}: {exc}")
+            log_progress(f"Skipping {site}: {exc}")
     if jobs:
         combined = pd.concat(jobs, ignore_index=True)
         save_jobs(combined)
-    return RedirectResponse("/swipe", status_code=303)
+        log_progress(f"Saved {len(combined)} jobs")
+    log_progress("Done")
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
+
+
+@app.get("/", response_class=HTMLResponse)
+def search_form(request: Request):
+    return templates.TemplateResponse("search.html", {"request": request})
+
+
+@app.post("/fetch")
+def fetch_jobs(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    search_term: str = Form(...),
+    location: str = Form(...),
+    sites: List[str] = Form(...),
+):
+    """Start job fetching in the background and show progress."""
+    progress_logs.clear()
+    background_tasks.add_task(fetch_jobs_task, search_term, location, sites)
+    return templates.TemplateResponse("progress.html", {"request": request})
+
+
+@app.get("/progress")
+def progress() -> JSONResponse:
+    """Return current fetch progress logs."""
+    done = len(progress_logs) > 0 and progress_logs[-1] == "Done"
+    return JSONResponse({"logs": list(progress_logs), "done": done})
 
 
 @app.get("/swipe", response_class=HTMLResponse)
