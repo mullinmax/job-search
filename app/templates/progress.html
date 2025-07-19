@@ -2,12 +2,15 @@
 {% block title %}Fetching Jobs{% endblock %}
 {% block content %}
 <h1 class="mb-3">Fetching jobs...</h1>
-<pre id="log" class="bg-light p-3 rounded"></pre>
+<div class="d-flex justify-content-center my-4">
+  <div class="spinner-border" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+</div>
 <script>
 async function poll() {
   const r = await fetch('/progress');
   const data = await r.json();
-  document.getElementById('log').textContent = data.logs.join('\n');
   if (data.done) {
     window.location.href = '/swipe';
   } else {
