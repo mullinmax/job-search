@@ -1,4 +1,4 @@
-# Job Ranker
+# Job Classifier
 
 This project lets you fetch job postings from multiple sites and quickly swipe through them, storing feedback about whether each role is a good match.
 
@@ -7,13 +7,13 @@ This project lets you fetch job postings from multiple sites and quickly swipe t
 1. Build the Docker image:
 
 ```bash
-docker build -t job-ranker .
+docker build -t job-classifier .
 ```
 
 2. Run the container:
 
 ```bash
-docker run -p 8000:8000 job-ranker
+docker run -p 8000:8000 job-classifier
 ```
 
 3. Visit `http://localhost:8000` to enter search terms and fetch jobs.
