@@ -1,15 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Job Stats{% endblock %}
+{% block title %}Job Feedback{% endblock %}
 {% block content %}
-<h1>Job Rankings</h1>
+<h1>Liked Jobs</h1>
 <table class="stats-table">
-  <tr><th>#</th><th>Title</th><th>Company</th><th>ELO</th></tr>
-  {% for j in jobs %}
+  <tr><th>#</th><th>Title</th><th>Company</th></tr>
+  {% for j in liked %}
   <tr>
     <td>{{ loop.index }}</td>
     <td>{{ j.title }}</td>
     <td>{{ j.company }}</td>
-    <td>{{ '%.0f'|format(j.elo) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h1>Rejected Jobs</h1>
+<table class="stats-table">
+  <tr><th>#</th><th>Title</th><th>Company</th></tr>
+  {% for j in rejected %}
+  <tr>
+    <td>{{ loop.index }}</td>
+    <td>{{ j.title }}</td>
+    <td>{{ j.company }}</td>
   </tr>
   {% endfor %}
 </table>

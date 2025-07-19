@@ -51,7 +51,6 @@ def init_db() -> None:
             max_amount REAL,
             currency TEXT,
             job_url TEXT UNIQUE,
-            elo REAL DEFAULT 1000,
             rating_count INTEGER DEFAULT 0
         )
         """
@@ -116,44 +115,40 @@ def get_random_job() -> Optional[Dict]:
     return None
 
 
-def list_jobs_by_elo() -> List[Dict]:
+
+def list_jobs_by_feedback(liked: bool) -> List[Dict]:
+    """Return jobs that were marked liked or rejected."""
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
-    cur.execute("SELECT * FROM jobs ORDER BY elo DESC")
+    cur.execute(
+        """
+        SELECT jobs.* FROM jobs
+        JOIN feedback ON jobs.id = feedback.job_id
+        WHERE feedback.liked=?
+        ORDER BY feedback.id DESC
+        """,
+        (int(liked),),
+    )
     rows = cur.fetchall()
     columns = [c[0] for c in cur.description]
     conn.close()
     return [dict(zip(columns, r)) for r in rows]
 
 
-def update_elo_single(job_id: int, liked: bool, k: int = 32) -> None:
-    """Update ELO score treating the rating as a match against a baseline."""
-    baseline = 1000
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-    cur.execute("SELECT elo, rating_count FROM jobs WHERE id=?", (job_id,))
-    row = cur.fetchone()
-    if not row:
-        conn.close()
-        return
-    elo, count = row
-    expected = 1 / (1 + 10 ** ((baseline - elo) / 400))
-    actual = 1 if liked else 0
-    elo = elo + k * (actual - expected)
-    count += 1
-    cur.execute("UPDATE jobs SET elo=?, rating_count=? WHERE id=?", (elo, count, job_id))
-    conn.commit()
-    conn.close()
+
 
 
 def record_feedback(job_id: int, liked: bool, reason: Optional[str]) -> None:
-    """Store feedback and update ELO."""
-    update_elo_single(job_id, liked)
+    """Store classification feedback."""
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,?)",
         (job_id, int(liked), reason, int(time.time())),
+    )
+    cur.execute(
+        "UPDATE jobs SET rating_count = rating_count + 1 WHERE id=?",
+        (job_id,),
     )
     conn.commit()
     conn.close()
@@ -249,5 +244,13 @@ def feedback(job_id: int = Form(...), liked: int = Form(...), reason: str = Form
 
 @app.get("/stats", response_class=HTMLResponse)
 def stats(request: Request):
-    jobs = list_jobs_by_elo()
-    return templates.TemplateResponse("stats.html", {"request": request, "jobs": jobs})
+    liked_jobs = list_jobs_by_feedback(True)
+    rejected_jobs = list_jobs_by_feedback(False)
+    return templates.TemplateResponse(
+        "stats.html",
+        {
+            "request": request,
+            "liked": liked_jobs,
+            "rejected": rejected_jobs,
+        },
+    )
