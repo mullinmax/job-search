@@ -77,7 +77,11 @@ def embed_text(text: str) -> List[float]:
     try:
         r = requests.post(
             f"{OLLAMA_BASE_URL}/api/embeddings",
-            json={"model": OLLAMA_EMBED_MODEL, "prompt": text},
+            json={
+                "model": OLLAMA_EMBED_MODEL,
+                "prompt": text,
+                "options": {"num_ctx": 4096},
+            },
             timeout=120,
         )
         r.raise_for_status()
@@ -94,7 +98,12 @@ def generate_summary(text: str) -> str:
     try:
         r = requests.post(
             f"{OLLAMA_BASE_URL}/api/generate",
-            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False},
+            json={
+                "model": OLLAMA_REPHRASE_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"num_ctx": 4096},
+            },
             timeout=120,
         )
         r.raise_for_status()
@@ -556,3 +565,26 @@ def cleanup(request: Request):
     return templates.TemplateResponse(
         "manage.html", {"request": request, "deleted": deleted}
     )
+
+
+def reprocess_jobs_task() -> None:
+    """Delete existing summaries/embeddings and regenerate them."""
+    if not OLLAMA_ENABLED:
+        return
+    log_progress("Clearing summaries and embeddings")
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM summaries")
+    cur.execute("DELETE FROM embeddings")
+    conn.commit()
+    conn.close()
+    log_progress("Regenerating data")
+    process_all_jobs()
+    log_progress("Done")
+
+
+@app.post("/reprocess", response_class=HTMLResponse)
+def reprocess(request: Request, background_tasks: BackgroundTasks):
+    progress_logs.clear()
+    background_tasks.add_task(reprocess_jobs_task)
+    return templates.TemplateResponse("progress.html", {"request": request})

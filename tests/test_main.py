@@ -275,3 +275,52 @@ def test_aggregate_job_stats(main):
     assert stats["avg_min_pay"] == pytest.approx(150)
     assert stats["avg_max_pay"] == pytest.approx(250)
 
+
+def test_reprocess_jobs_task(main, monkeypatch):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "T1",
+            "company": "C1",
+            "location": "L",
+            "date_posted": "d",
+            "description": "d1",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://e.com/1",
+        }
+    ])
+    main.save_jobs(df)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO summaries(job_id, summary) VALUES(1, 's')")
+    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(1, 'e')")
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(main, "OLLAMA_ENABLED", True)
+    called = {}
+
+    def fake_process():
+        called["x"] = True
+
+    monkeypatch.setattr(main, "process_all_jobs", fake_process)
+
+    main.reprocess_jobs_task()
+
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM summaries")
+    s_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM embeddings")
+    e_count = cur.fetchone()[0]
+    conn.close()
+
+    assert s_count == 0
+    assert e_count == 0
+    assert called.get("x")
+    assert main.progress_logs[-1] == "Done"
+
