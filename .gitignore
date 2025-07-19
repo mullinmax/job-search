@@ -12,3 +12,4 @@ build/
 .pytest_cache/
 # Packaging
 pip-wheel-metadata/
+build_number.txt

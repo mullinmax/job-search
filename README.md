@@ -4,10 +4,11 @@ This project lets you fetch job postings from multiple sites and quickly swipe t
 
 ## Usage
 
-1. Build the Docker image:
+1. Build the Docker image using the provided script which automatically
+   increments the build number:
 
 ```bash
-docker build -t job-ranker .
+./build.sh
 ```
 
 2. Run the container:
