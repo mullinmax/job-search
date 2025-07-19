@@ -50,3 +50,7 @@ The application uses [JobSpy](https://pypi.org/project/python-jobspy/) to scrape
 job boards and FastAPI for the web interface. If LinkedIn descriptions are
 missing, the scraper now passes `linkedin_fetch_description=True` which visits
 each LinkedIn job page to pull the full text.
+
+## Documentation
+
+See [docs/architecture.md](docs/architecture.md) for a walkthrough of how the application is structured and how to set up a development environment.
