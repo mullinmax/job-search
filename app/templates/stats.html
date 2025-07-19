@@ -52,4 +52,20 @@
 </table>
 
 <p>Average salary (where provided): {{ format_salary(stats.avg_min_pay, stats.avg_max_pay, 'USD') }}</p>
+
+<h2 class="mt-5">Predicted Matches</h2>
+{% if predictions %}
+<table class="table table-sm">
+  <tr><th>Title</th><th>Company</th><th>Confidence</th></tr>
+  {% for p in predictions %}
+  <tr>
+    <td><a href="/swipe?job_id={{ p.id }}">{{ p.title }}</a></td>
+    <td>{{ p.company }}</td>
+    <td>{{ '{:.0%}'.format(p.confidence) }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>No predictions available.</p>
+{% endif %}
 {% endblock %}
