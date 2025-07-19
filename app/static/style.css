@@ -4,7 +4,7 @@ body { font-family: Arial, sans-serif; background: #f8f9fa; color: #333; padding
 .job-grid { display: flex; gap: 1rem; }
 .job-card { flex: 1; border: 1px solid #ccc; padding: 1rem; background: #fafafa; border-radius: 0.25rem; }
 .job-card.single { max-width: 800px; margin: auto; }
-.job-desc { max-height: 400px; overflow-y: auto; }
+.job-desc { max-height: none; overflow-y: visible; }
 .swipe-buttons { margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(255,255,255,0.9); padding: 0.5rem 1rem; border-radius: 0.25rem; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
 .good { background: #4caf50; color: #fff; border: none; padding: 0.5rem 1rem; font-size: 1.2rem; cursor: pointer; }
 .bad { background: #f44336; color: #fff; border: none; padding: 0.5rem 1rem; font-size: 1.2rem; text-decoration: none; display: inline-block; text-align: center; }
