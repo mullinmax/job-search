@@ -29,9 +29,15 @@ services:
     environment:
       - DATABASE=/config/jobs.db
       - OLLAMA_BASE_URL=http://ollama:11434
+      # Optional: use different models for embeddings and rephrasing
+      - OLLAMA_EMBED_MODEL=llama3
+      - OLLAMA_REPHRASE_MODEL=llama3
     volumes:
       - ./data:/config
 ```
+
+`OLLAMA_EMBED_MODEL` and `OLLAMA_REPHRASE_MODEL` default to the value of
+`OLLAMA_MODEL` (or `llama3` if unset) so existing setups continue to work.
 
 Then run:
 
