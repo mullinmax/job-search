@@ -1,23 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Swipe Jobs{% endblock %}
 {% block content %}
-<h1>Is this job a good fit?</h1>
-<div class="job-card single">
-  <h2 class="job-title">{{ job.title }}</h2>
-  <p class="job-company">{{ job.company }}</p>
-  <p class="job-location">{{ job.location }}</p>
-  <p class="job-source">{{ job.site }}</p>
-  {% if job.min_amount %}
-  <p class="job-salary">{{ job.min_amount }} - {{ job.max_amount }} {{ job.currency }}</p>
-  {% endif %}
-  <p class="job-desc">{{ job.description[:200] }}...</p>
-  <div class="swipe-buttons">
-    <form method="post" action="/feedback">
-      <input type="hidden" name="job_id" value="{{ job.id }}" />
-      <input type="hidden" name="liked" value="1" />
-      <button class="good" type="submit">✔</button>
-    </form>
-    <a class="bad" href="/reject/{{ job.id }}">✖</a>
+<h1 class="mb-4">Is this job a good fit?</h1>
+<div class="card mb-4 mx-auto" style="max-width: 500px;">
+  <div class="card-body">
+    <h2 class="card-title">{{ job.title }}</h2>
+    <p class="card-subtitle mb-2 text-muted">{{ job.company }}</p>
+    <p class="mb-1">{{ job.location }}</p>
+    <p class="mb-1">{{ job.site }}</p>
+    {% if job.min_amount %}
+    <p class="mb-1">{{ job.min_amount }} - {{ job.max_amount }} {{ job.currency }}</p>
+    {% endif %}
+    <p>{{ job.description[:200] }}...</p>
   </div>
+</div>
+<div class="d-flex justify-content-center gap-3 swipe-buttons">
+  <form method="post" action="/feedback">
+    <input type="hidden" name="job_id" value="{{ job.id }}" />
+    <input type="hidden" name="liked" value="1" />
+    <button class="btn btn-success good" type="submit">✔</button>
+  </form>
+  <a class="btn btn-danger bad" href="/reject/{{ job.id }}">✖</a>
 </div>
 {% endblock %}
