@@ -10,3 +10,4 @@ body { font-family: Arial, sans-serif; background: #f4f4f4; color: #333; }
 .bad:hover, .good:hover { opacity: 0.8; }
 .stats-table { width: 100%; border-collapse: collapse; }
 .stats-table th, .stats-table td { border-bottom: 1px solid #ddd; padding: 0.25rem; text-align: left; }
+pre { background: #f0f0f0; padding: 0.5rem; }

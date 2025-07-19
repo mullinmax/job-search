@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Fetching Jobs{% endblock %}
+{% block content %}
+<h1>Fetching jobs...</h1>
+<pre id="log"></pre>
+<script>
+async function poll() {
+  const r = await fetch('/progress');
+  const data = await r.json();
+  document.getElementById('log').textContent = data.logs.join('\n');
+  if (data.done) {
+    window.location.href = '/swipe';
+  } else {
+    setTimeout(poll, 1000);
+  }
+}
+poll();
+</script>
+{% endblock %}
