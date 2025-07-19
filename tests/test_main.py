@@ -169,3 +169,57 @@ def test_fetch_jobs_task(main, monkeypatch):
     assert count == 2
     assert main.progress_logs[-1] == "Done"
 
+
+def test_cleanup_jobs(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Dev",
+            "company": "Comp",
+            "location": "L",
+            "date_posted": "d",
+            "description": "",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://example.com/1",
+        },
+        {
+            "site": "t",
+            "title": "Dev",
+            "company": "Comp",
+            "location": "L",
+            "date_posted": "d",
+            "description": "desc",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://example.com/2",
+        },
+        {
+            "site": "t",
+            "title": "Dev",
+            "company": "Comp",
+            "location": "L",
+            "date_posted": "d",
+            "description": "desc2",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://example.com/3",
+        },
+    ])
+    main.save_jobs(df)
+    deleted = main.cleanup_jobs()
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM jobs")
+    count = cur.fetchone()[0]
+    conn.close()
+    assert deleted == 2
+    assert count == 1
+
