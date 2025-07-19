@@ -276,7 +276,13 @@ def test_aggregate_job_stats(main):
     assert stats["avg_max_pay"] == pytest.approx(250)
 
 
-def test_reprocess_jobs_task(main, monkeypatch):
+def test_render_markdown(main):
+    html = main.render_markdown("---\n**Test**\n---")
+    assert "<strong>Test</strong>" in html
+    assert "---" not in html
+
+
+def test_clear_ai_data_and_reprocess_tasks(main, monkeypatch):
     main.init_db()
     df = pd.DataFrame([
         {
@@ -301,26 +307,26 @@ def test_reprocess_jobs_task(main, monkeypatch):
     conn.commit()
     conn.close()
 
+    # Test clearing
     monkeypatch.setattr(main, "OLLAMA_ENABLED", True)
+    main.clear_ai_data_task()
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM summaries")
+    assert cur.fetchone()[0] == 0
+    cur.execute("SELECT COUNT(*) FROM embeddings")
+    assert cur.fetchone()[0] == 0
+    conn.close()
+    assert main.progress_logs[-1] == "Done"
+
+    # Test generating missing data
     called = {}
 
     def fake_process():
         called["x"] = True
 
     monkeypatch.setattr(main, "process_all_jobs", fake_process)
-
     main.reprocess_jobs_task()
-
-    conn = sqlite3.connect(main.DATABASE)
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM summaries")
-    s_count = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM embeddings")
-    e_count = cur.fetchone()[0]
-    conn.close()
-
-    assert s_count == 0
-    assert e_count == 0
     assert called.get("x")
     assert main.progress_logs[-1] == "Done"
 
