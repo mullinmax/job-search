@@ -11,7 +11,11 @@
     {% if job.min_amount %}
     <p class="mb-1">{{ job.min_amount }} - {{ job.max_amount }} {{ job.currency }}</p>
     {% endif %}
+    {% if job.description %}
     <p>{{ job.description[:200] }}...</p>
+    {% else %}
+    <p>No description available.</p>
+    {% endif %}
   </div>
 </div>
 <div class="d-flex justify-content-center gap-3 swipe-buttons">
