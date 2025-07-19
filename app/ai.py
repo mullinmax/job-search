@@ -1,0 +1,131 @@
+import json
+import logging
+from typing import List
+
+import requests
+
+from .config import (
+    OLLAMA_BASE_URL,
+    OLLAMA_EMBED_MODEL,
+    OLLAMA_REPHRASE_MODEL,
+    OLLAMA_ENABLED,
+)
+from . import main as app_main
+
+logger = logging.getLogger("job_fetch")
+
+REWRITE_PROMPT_TEMPLATE = '''
+Rewrite the following job description into concise Markdown without preamble.
+Omit any sections that cannot be filled from the text. Use this structure:
+
+---
+**Technical Requirements**
+- item one
+- item two
+
+**Soft Skills**
+- item one
+- item two
+
+**Description**
+A short paragraph summarizing the role.
+---
+
+Job posting:
+"""{description}"""
+'''
+
+
+def ensure_model_downloaded() -> None:
+    if not OLLAMA_ENABLED:
+        return
+    for model in {OLLAMA_EMBED_MODEL, OLLAMA_REPHRASE_MODEL}:
+        try:
+            requests.post(f"{OLLAMA_BASE_URL}/api/pull", json={"name": model}, timeout=120)
+        except Exception as exc:
+            logger.info(f"Failed to pull model {model}: {exc}")
+
+
+def embed_text(text: str) -> List[float]:
+    if not OLLAMA_ENABLED:
+        return []
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/embeddings",
+            json={"model": OLLAMA_EMBED_MODEL, "prompt": text, "options": {"num_ctx": 4096}},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json().get("embedding", [])
+    except Exception as exc:
+        logger.info(f"Embedding failed: {exc}")
+        return []
+
+
+def generate_summary(text: str) -> str:
+    if not OLLAMA_ENABLED:
+        return ""
+    prompt = REWRITE_PROMPT_TEMPLATE.format(description=text)
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False, "options": {"num_ctx": 8192}},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json().get("response", "")
+    except Exception as exc:
+        logger.info(f"Summary generation failed: {exc}")
+        return ""
+
+
+from markdown import markdown
+
+
+def render_markdown(text: str) -> str:
+    if not text:
+        return ""
+    lines = [ln for ln in text.splitlines() if ln.strip() != "---"]
+    cleaned = "\n".join(lines)
+    fixed = []
+    for ln in cleaned.splitlines():
+        if ln.lstrip().startswith("-") and fixed and fixed[-1].strip():
+            fixed.append("")
+        fixed.append(ln)
+    cleaned = "\n".join(fixed)
+    return markdown(cleaned)
+
+
+import sqlite3
+
+
+def process_all_jobs() -> None:
+    if not OLLAMA_ENABLED:
+        return
+    conn = sqlite3.connect(app_main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT id, description FROM jobs")
+    rows = cur.fetchall()
+    for job_id, desc in rows:
+        if not desc:
+            continue
+        cur.execute("SELECT 1 FROM summaries WHERE job_id=?", (job_id,))
+        have_sum = cur.fetchone()
+        cur.execute("SELECT 1 FROM embeddings WHERE job_id=?", (job_id,))
+        have_emb = cur.fetchone()
+        if have_sum and have_emb:
+            continue
+        summary = generate_summary(desc) if not have_sum else None
+        embedding = embed_text(desc) if not have_emb else None
+        if summary is not None:
+            cur.execute(
+                "INSERT OR IGNORE INTO summaries(job_id, summary) VALUES(?, ?)",
+                (job_id, summary),
+            )
+        if embedding is not None:
+            cur.execute(
+                "INSERT OR IGNORE INTO embeddings(job_id, embedding) VALUES(?, ?)",
+                (job_id, json.dumps(embedding)),
+            )
+        conn.commit()
+    conn.close()
