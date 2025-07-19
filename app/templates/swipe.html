@@ -4,7 +4,7 @@
 <h1 class="mb-4">Is this job a good fit?</h1>
 <div class="card mb-4 mx-auto job-card single">
   <div class="card-body d-flex flex-column">
-    <h2 class="card-title">{{ job.title }}</h2>
+    <h2 class="card-title"><a href="{{ job.job_url }}" target="_blank" rel="noopener">{{ job.title }}</a></h2>
     <p class="card-subtitle mb-2 text-muted">{{ job.company }}</p>
     <p class="mb-1">{{ job.location }}</p>
     <p class="mb-1">{{ job.site }}</p>

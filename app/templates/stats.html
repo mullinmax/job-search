@@ -7,7 +7,7 @@
   {% for j in jobs %}
   <tr>
     <td>{{ loop.index }}</td>
-    <td>{{ j.title }}</td>
+    <td><a href="{{ j.job_url }}" target="_blank" rel="noopener">{{ j.title }}</a></td>
     <td>{{ j.company }}</td>
     <td>{{ j.likes }}</td>
     <td>{{ j.dislikes }}</td>
