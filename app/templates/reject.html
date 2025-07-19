@@ -4,7 +4,7 @@
 <h1 class="mb-4">Why isn't this job a good fit?</h1>
 <div class="card mb-4 mx-auto" style="max-width: 500px;">
   <div class="card-body">
-    <h2 class="card-title">{{ job.title }}</h2>
+    <h2 class="card-title"><a href="{{ job.job_url }}" target="_blank" rel="noopener">{{ job.title }}</a></h2>
     <p class="card-subtitle mb-2 text-muted">{{ job.company }}</p>
     <p class="mb-1">{{ job.location }}</p>
   </div>
