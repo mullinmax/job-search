@@ -72,6 +72,15 @@ def init_db() -> None:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS not_duplicates(
+            job_id1 INTEGER,
+            job_id2 INTEGER,
+            PRIMARY KEY(job_id1, job_id2)
+        )
+        """
+    )
     conn.commit()
     conn.close()
 
@@ -342,12 +351,29 @@ def delete_job(job_id: int) -> None:
     conn.close()
 
 
+def mark_not_duplicates(id1: int, id2: int) -> None:
+    """Record that two jobs are not duplicates."""
+    if id1 > id2:
+        id1, id2 = id2, id1
+    conn = sqlite3.connect(app_main.DATABASE)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT OR IGNORE INTO not_duplicates(job_id1, job_id2) VALUES(?, ?)",
+        (id1, id2),
+    )
+    conn.commit()
+    conn.close()
+
+
 def find_duplicate_jobs(threshold: float = 0.85) -> List[Tuple[Dict, Dict, float]]:
     """Return pairs of potentially duplicate jobs based on text similarity."""
     conn = sqlite3.connect(app_main.DATABASE)
     df = pd.read_sql_query(
         "SELECT id, title, company, location, description FROM jobs", conn
     )
+    cur = conn.cursor()
+    cur.execute("SELECT job_id1, job_id2 FROM not_duplicates")
+    ignored = {tuple(sorted(row)) for row in cur.fetchall()}
     conn.close()
     if df.empty:
         return []
@@ -360,5 +386,9 @@ def find_duplicate_jobs(threshold: float = 0.85) -> List[Tuple[Dict, Dict, float
     for i in range(len(df)):
         for j in range(i + 1, len(df)):
             if sim[i, j] >= threshold:
-                pairs.append((df.iloc[i].to_dict(), df.iloc[j].to_dict(), float(sim[i, j])))
+                key = tuple(sorted((df.iloc[i]["id"], df.iloc[j]["id"])))
+                if key not in ignored:
+                    pairs.append(
+                        (df.iloc[i].to_dict(), df.iloc[j].to_dict(), float(sim[i, j]))
+                    )
     return pairs

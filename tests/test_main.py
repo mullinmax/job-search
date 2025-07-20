@@ -463,6 +463,22 @@ def test_find_duplicate_jobs(main):
     assert a["title"] == b["title"]
 
 
+def test_mark_not_duplicates(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {"site": "a", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "desc", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/1"},
+        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "desc", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
+    ])
+    main.save_jobs(df)
+    pairs = main.find_duplicate_jobs(0.5)
+    assert pairs
+    id1 = pairs[0][0]["id"]
+    id2 = pairs[0][1]["id"]
+    main.mark_not_duplicates(id1, id2)
+    pairs = main.find_duplicate_jobs(0.5)
+    assert pairs == []
+
+
 def test_train_model_single_class(main):
     """Model training should handle only one feedback class gracefully."""
     main.init_db()
