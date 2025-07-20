@@ -7,9 +7,10 @@ import logging
 from collections import deque
 from threading import Thread
 
+import io
 import pandas as pd
 from fastapi import FastAPI, Form, Request, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jobspy import scrape_jobs
@@ -25,6 +26,7 @@ from .db import (
     get_random_job,
     get_job,
     list_jobs_by_feedback,
+    list_liked_jobs,
     aggregate_job_stats,
     increment_rating_count,
     record_feedback,
@@ -312,3 +314,63 @@ def delete_ai(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
     background_tasks.add_task(clear_ai_data_task)
     return templates.TemplateResponse("progress.html", {"request": request})
+
+
+@app.get("/export_likes")
+def export_likes():
+    """Download positively rated jobs as an Excel file."""
+    df = list_liked_jobs()
+    if not df.empty:
+        df["Date Rated"] = pd.to_datetime(df["rated_at"], unit="s").dt.date
+        df["Pay Range"] = df.apply(
+            lambda r: format_salary(r["min_amount"], r["max_amount"], r["currency"])
+            if pd.notnull(r["min_amount"]) and pd.notnull(r["max_amount"])
+            else "",
+            axis=1,
+        )
+        df = df.rename(
+            columns={
+                "company": "Company",
+                "title": "Job Title",
+                "location": "Location",
+                "date_posted": "Date Posted",
+                "job_url": "Link",
+            }
+        )
+        df["Notes"] = ""
+        df = df[
+            [
+                "Company",
+                "Job Title",
+                "Location",
+                "Date Posted",
+                "Date Rated",
+                "Pay Range",
+                "Notes",
+                "Link",
+            ]
+        ]
+    else:
+        df = pd.DataFrame(
+            columns=[
+                "Company",
+                "Job Title",
+                "Location",
+                "Date Posted",
+                "Date Rated",
+                "Pay Range",
+                "Notes",
+                "Link",
+            ]
+        )
+    buf = io.BytesIO()
+    df.to_excel(buf, index=False, engine="openpyxl")
+    buf.seek(0)
+    headers = {
+        "Content-Disposition": "attachment; filename=liked_jobs.xlsx"
+    }
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )

@@ -261,3 +261,19 @@ def cleanup_jobs() -> int:
     conn.commit()
     conn.close()
     return deleted_missing + deleted_dupes
+
+
+def list_liked_jobs() -> pd.DataFrame:
+    """Return a DataFrame of positively rated jobs with rating timestamps."""
+    conn = sqlite3.connect(app_main.DATABASE)
+    query = """
+        SELECT j.company, j.title, j.location, j.date_posted,
+               f.rated_at, j.min_amount, j.max_amount, j.currency, j.job_url
+        FROM jobs j
+        JOIN feedback f ON j.id = f.job_id
+        WHERE f.liked = 1
+        ORDER BY f.rated_at DESC
+    """
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df

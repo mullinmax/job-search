@@ -408,3 +408,27 @@ def test_evaluate_model(main):
     assert stats["tp"] + stats["tn"] + stats["fp"] + stats["fn"] == 2
     assert 0.0 <= stats["accuracy"] <= 1.0
 
+
+def test_list_liked_jobs(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Dev",
+            "company": "C",
+            "location": "L",
+            "date_posted": "d",
+            "description": "desc",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://e.com/liked",
+        }
+    ])
+    main.save_jobs(df)
+    main.record_feedback(1, True, "")
+    liked = main.list_liked_jobs()
+    assert len(liked) == 1
+    assert liked["company"].iloc[0] == "C"
+
