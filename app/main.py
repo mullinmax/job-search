@@ -1,7 +1,11 @@
 import os
 import sqlite3
 import time
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
+
+import html
+import random
+from difflib import SequenceMatcher
 
 import logging
 from collections import deque
@@ -142,6 +146,38 @@ def time_since_posted(date_str: str) -> str:
 
 
 templates.env.globals["time_since_posted"] = time_since_posted
+
+
+def highlight_diffs(a: Dict, b: Dict) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Return HTML strings for fields of two jobs with differences marked."""
+
+    def markup(x: str, y: str) -> Tuple[str, str]:
+        sm = SequenceMatcher(None, x or "", y or "")
+        a_parts: List[str] = []
+        b_parts: List[str] = []
+        for op, i1, i2, j1, j2 in sm.get_opcodes():
+            sub_a = html.escape(x[i1:i2])
+            sub_b = html.escape(y[j1:j2])
+            if op == "equal":
+                a_parts.append(sub_a)
+                b_parts.append(sub_b)
+            else:
+                if sub_a:
+                    a_parts.append(f"<mark>{sub_a}</mark>")
+                if sub_b:
+                    b_parts.append(f"<mark>{sub_b}</mark>")
+        return "".join(a_parts), "".join(b_parts)
+
+    fields = ["title", "company", "location", "description"]
+    res_a: Dict[str, str] = {}
+    res_b: Dict[str, str] = {}
+    for f in fields:
+        res_a[f + "_html"], res_b[f + "_html"] = markup(str(a.get(f) or ""), str(b.get(f) or ""))
+    res_a["summary"] = a.get("summary")
+    res_b["summary"] = b.get("summary")
+    res_a["id"] = a.get("id")
+    res_b["id"] = b.get("id")
+    return res_a, res_b
 
 def log_progress(message: str) -> None:
     """Log a progress message to the logger and internal buffer."""
@@ -420,7 +456,28 @@ def export_likes():
 @app.get("/dedup", response_class=HTMLResponse)
 def dedup(request: Request):
     pairs = find_duplicate_jobs()
-    return templates.TemplateResponse("dedup.html", {"request": request, "pairs": pairs})
+    if not pairs:
+        return templates.TemplateResponse(
+            "dedup.html", {"request": request, "pair": None, "remaining": 0}
+        )
+    a, b, _ = pairs[0]
+    a_html, b_html = highlight_diffs(a, b)
+    return templates.TemplateResponse(
+        "dedup.html",
+        {
+            "request": request,
+            "pair": (a_html, b_html),
+            "remaining": len(pairs),
+        },
+    )
+
+
+@app.post("/dedup_action", response_class=HTMLResponse)
+def dedup_action(pair_ids: str = Form(...), dup: int = Form(...)):
+    id1, id2 = [int(x) for x in pair_ids.split(",")]
+    if dup:
+        delete_job(random.choice([id1, id2]))
+    return RedirectResponse("/dedup", status_code=303)
 
 
 @app.post("/delete_job/{job_id}", response_class=HTMLResponse)
