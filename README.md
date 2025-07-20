@@ -51,6 +51,7 @@ docker compose up
    Feedback is stored in a SQLite database inside the container to help train a future matching model.
    If any job boards fail to fetch (for example due to network restrictions) the
    progress screen now shows detailed logs so you can see which sources were skipped.
+   A statistics page summarizes stored jobs and reports model accuracy, precision and recall so you can track its performance.
 
 The application uses [JobSpy](https://pypi.org/project/python-jobspy/) to scrape
 job boards and FastAPI for the web interface. If LinkedIn descriptions are

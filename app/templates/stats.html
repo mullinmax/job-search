@@ -53,6 +53,21 @@
 
 <p>Average salary (where provided): {{ format_salary(stats.avg_min_pay, stats.avg_max_pay, 'USD') }}</p>
 
+<h2 class="mt-5">Model Performance</h2>
+{% if model_stats.total > 0 %}
+<ul>
+  <li>Accuracy: {{ '{:.0%}'.format(model_stats.accuracy) }}</li>
+  <li>Precision: {{ '{:.0%}'.format(model_stats.precision) }}</li>
+  <li>Recall: {{ '{:.0%}'.format(model_stats.recall) }}</li>
+  <li>True Positives: {{ model_stats.tp }}</li>
+  <li>True Negatives: {{ model_stats.tn }}</li>
+  <li>False Positives: {{ model_stats.fp }}</li>
+  <li>False Negatives: {{ model_stats.fn }}</li>
+</ul>
+{% else %}
+<p>No feedback available to evaluate the model.</p>
+{% endif %}
+
 <h2 class="mt-5">Predicted Matches</h2>
 {% if predictions %}
 <table class="table table-sm">
