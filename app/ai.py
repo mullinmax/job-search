@@ -37,7 +37,10 @@ Job posting:
 """{description}"""
 '''
 
-CLEAN_COMPANY_PROMPT = "Clean up the company name: '{name}'. Return the corrected capitalization without corporate suffixes." 
+CLEAN_COMPANY_PROMPT = (
+    "Clean up the company name: '{name}'. Remove corporate suffixes like Inc., LLC or Ltd. "
+    "Correct the capitalization and return ONLY the cleaned name without any extra text."
+)
 CLEAN_TITLE_PROMPT = "Simplify the job title by removing words like full-time or hybrid but keep codes: '{title}'. Return the cleaned title." 
 SALARY_PROMPT = (
     "Extract the annual salary range from this text. "
@@ -100,7 +103,14 @@ def clean_company(name: str) -> str:
             timeout=120,
         )
         r.raise_for_status()
-        return r.json().get("response", name).strip()
+        resp = r.json().get("response", name).strip()
+        if (
+            len(resp) > len(name) + 2
+            or ":" in resp
+            or "\n" in resp
+        ):
+            return name
+        return resp
     except Exception as exc:
         logger.info(f"Company cleanup failed: {exc}")
         return name
