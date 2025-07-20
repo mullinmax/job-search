@@ -16,7 +16,8 @@ logger = logging.getLogger("job_fetch")
 
 REWRITE_PROMPT_TEMPLATE = '''
 Rewrite the following job description into concise Markdown without preamble.
-Omit any sections that cannot be filled from the text. Use this structure:
+Start with a bullet list of required technologies, grouping alternatives with '/'.
+Skip duplicate items and omit sections that cannot be filled.
 
 ---
 **Technical Requirements**
@@ -26,9 +27,6 @@ Omit any sections that cannot be filled from the text. Use this structure:
 **Soft Skills**
 - item one
 - item two
-
-**Description**
-A short paragraph summarizing the role.
 ---
 
 Job posting:
@@ -155,13 +153,23 @@ from markdown import markdown
 def render_markdown(text: str) -> str:
     if not text:
         return ""
+    text = text.strip()
+    text = re.sub(r'^`?`?\s*markdown\s*', '', text, flags=re.I)
     lines = [ln for ln in text.splitlines() if ln.strip() != "---"]
     cleaned = "\n".join(lines)
     fixed = []
+    seen = set()
     for ln in cleaned.splitlines():
-        if ln.lstrip().startswith("-") and fixed and fixed[-1].strip():
-            fixed.append("")
-        fixed.append(ln)
+        if ln.lstrip().startswith("-"):
+            normalized = ln.strip().lower()
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            if fixed and fixed[-1].strip():
+                fixed.append("")
+            fixed.append(ln)
+        else:
+            fixed.append(ln)
     cleaned = "\n".join(fixed)
     return markdown(cleaned)
 

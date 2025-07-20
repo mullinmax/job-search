@@ -62,7 +62,8 @@ progress_logs = deque(maxlen=100)
 
 REWRITE_PROMPT_TEMPLATE = '''
 Rewrite the following job description into concise Markdown without preamble.
-Omit any sections that cannot be filled from the text. Use this structure:
+Start with a bullet list of required technologies, grouping alternatives with '/'.
+Skip duplicate items and omit sections that cannot be filled.
 
 ---
 **Technical Requirements**
@@ -74,10 +75,6 @@ Omit any sections that cannot be filled from the text. Use this structure:
 
 - item one
 - item two
-
-**Description**
-
-A short paragraph summarizing the role.
 ---
 
 Job posting:
