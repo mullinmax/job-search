@@ -7,6 +7,7 @@ import sys
 
 import pandas as pd
 import pytest
+import time
 
 import importlib
 
@@ -157,7 +158,10 @@ def test_fetch_jobs_task(main, monkeypatch):
             }
         ])
 
-    monkeypatch.setattr(main, "scrape_jobs", fake_scrape_jobs)
+    monkeypatch.setattr(main, "scrape_with_jobspy", lambda *a, **k: fake_scrape_jobs(a[0]))
+    monkeypatch.setattr(main, "scrape_with_linkedin", lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(main, "scrape_with_jobfunnel", lambda *a, **k: pd.DataFrame())
+    monkeypatch.setattr(time, "sleep", lambda x: None)
 
     main.fetch_jobs_task("dev", "here", ["indeed", "linkedin"])
 
@@ -431,4 +435,17 @@ def test_list_liked_jobs(main):
     liked = main.list_liked_jobs()
     assert len(liked) == 1
     assert liked["company"].iloc[0] == "C"
+
+
+def test_find_duplicate_jobs(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {"site": "a", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "work on things", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/1"},
+        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "work on things", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
+    ])
+    main.save_jobs(df)
+    pairs = main.find_duplicate_jobs(0.5)
+    assert pairs
+    a, b, sim = pairs[0]
+    assert a["title"] == b["title"]
 

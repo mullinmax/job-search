@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Review Duplicates{% endblock %}
+{% block content %}
+<h1 class="mb-4">Possible Duplicates</h1>
+{% if not pairs %}
+<p>No potential duplicates found.</p>
+{% else %}
+<ul class="list-group">
+  {% for a,b,sim in pairs %}
+  <li class="list-group-item">
+    <div class="row">
+      <div class="col">
+        <h5>{{ a.title }} - {{ a.company }}</h5>
+        <p>{{ a.location }}</p>
+        <form method="post" action="/delete_job/{{ a.id }}" style="display:inline;">
+          <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this job?');">Delete</button>
+        </form>
+      </div>
+      <div class="col">
+        <h5>{{ b.title }} - {{ b.company }}</h5>
+        <p>{{ b.location }}</p>
+        <form method="post" action="/delete_job/{{ b.id }}" style="display:inline;">
+          <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this job?');">Delete</button>
+        </form>
+      </div>
+      <div class="col-2 d-flex align-items-center">
+        <span class="badge bg-info">{{ (sim*100)|round(0) }}% similar</span>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

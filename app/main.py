@@ -5,7 +5,7 @@ from typing import List, Dict, Optional
 
 import logging
 from collections import deque
-from threading import Thread
+from threading import Thread, Lock
 
 import io
 import pandas as pd
@@ -13,7 +13,12 @@ from fastapi import FastAPI, Form, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from jobspy import scrape_jobs
+from .scrapers import (
+    scrape_with_jobspy,
+    scrape_with_linkedin,
+    scrape_with_jobfunnel,
+    RATE_LIMIT,
+)
 
 from .config import (
     DATABASE,
@@ -31,6 +36,8 @@ from .db import (
     increment_rating_count,
     record_feedback,
     cleanup_jobs,
+    delete_job,
+    find_duplicate_jobs,
 )
 from .ai import (
     ensure_model_downloaded,
@@ -148,36 +155,56 @@ def log_progress(message: str) -> None:
 
 
 
+fetch_lock = Lock()
+
+
 def fetch_jobs_task(search_term: str, location: str, sites: List[str]) -> None:
     """Background task to fetch job postings and store them."""
-    google_term = f"{search_term} jobs in {location}"
-    jobs: List[pd.DataFrame] = []
-    for site in sites:
-        log_progress(f"Fetching from {site}")
+    if not fetch_lock.acquire(blocking=False):
+        log_progress("Another fetch task is running")
+        return
+    try:
+        google_term = f"{search_term} jobs in {location}"
+        jobs: List[pd.DataFrame] = []
+        for site in sites:
+            log_progress(f"Fetching from {site}")
+            try:
+                df = scrape_with_jobspy(site, search_term, google_term, location, 50)
+                jobs.append(df)
+                log_progress(f"{site}: {len(df)} jobs")
+            except Exception as exc:
+                log_progress(f"Skipping {site}: {exc}")
+            time.sleep(RATE_LIMIT)
+
+        # Additional libraries
+        log_progress("Fetching from linkedin-jobs-scraper")
         try:
-            df = scrape_jobs(
-                site_name=site,
-                search_term=search_term,
-                google_search_term=google_term,
-                location=location,
-                country_indeed="USA",
-                results_wanted=50,
-                hours_old=168,
-                description_format="html",
-                linkedin_fetch_description=site == "linkedin",
-                verbose=1,
-            )
-            jobs.append(df)
-            log_progress(f"{site}: {len(df)} jobs")
+            df = scrape_with_linkedin(search_term, location, 50)
+            if not df.empty:
+                jobs.append(df)
+                log_progress(f"linkedin-extra: {len(df)} jobs")
         except Exception as exc:
-            log_progress(f"Skipping {site}: {exc}")
-    if jobs:
-        combined = pd.concat(jobs, ignore_index=True)
-        save_jobs(combined)
-        log_progress(f"Saved {len(combined)} jobs")
-        if OLLAMA_ENABLED:
-            process_all_jobs()
-    log_progress("Done")
+            log_progress(f"LinkedIn scraper failed: {exc}")
+        time.sleep(RATE_LIMIT)
+
+        log_progress("Fetching from jobfunnel")
+        try:
+            df = scrape_with_jobfunnel(search_term, location, 50)
+            if not df.empty:
+                jobs.append(df)
+                log_progress(f"jobfunnel: {len(df)} jobs")
+        except Exception as exc:
+            log_progress(f"JobFunnel failed: {exc}")
+
+        if jobs:
+            combined = pd.concat(jobs, ignore_index=True)
+            save_jobs(combined)
+            log_progress(f"Saved {len(combined)} jobs")
+            if OLLAMA_ENABLED:
+                process_all_jobs()
+        log_progress("Done")
+    finally:
+        fetch_lock.release()
 
 
 @app.on_event("startup")
@@ -392,3 +419,14 @@ def export_likes():
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
     )
+
+@app.get("/dedup", response_class=HTMLResponse)
+def dedup(request: Request):
+    pairs = find_duplicate_jobs()
+    return templates.TemplateResponse("dedup.html", {"request": request, "pairs": pairs})
+
+
+@app.post("/delete_job/{job_id}", response_class=HTMLResponse)
+def delete_job_endpoint(request: Request, job_id: int):
+    delete_job(job_id)
+    return RedirectResponse("/dedup", status_code=303)

@@ -1,9 +1,11 @@
 import json
 import sqlite3
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from . import main as app_main
 from .ai import OLLAMA_ENABLED, process_all_jobs, render_markdown
@@ -326,3 +328,37 @@ def list_liked_jobs() -> pd.DataFrame:
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
+
+
+def delete_job(job_id: int) -> None:
+    """Remove a job and associated AI data."""
+    conn = sqlite3.connect(app_main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+    cur.execute("DELETE FROM summaries WHERE job_id=?", (job_id,))
+    cur.execute("DELETE FROM embeddings WHERE job_id=?", (job_id,))
+    cur.execute("DELETE FROM feedback WHERE job_id=?", (job_id,))
+    conn.commit()
+    conn.close()
+
+
+def find_duplicate_jobs(threshold: float = 0.85) -> List[Tuple[Dict, Dict, float]]:
+    """Return pairs of potentially duplicate jobs based on text similarity."""
+    conn = sqlite3.connect(app_main.DATABASE)
+    df = pd.read_sql_query(
+        "SELECT id, title, company, location, description FROM jobs", conn
+    )
+    conn.close()
+    if df.empty:
+        return []
+    texts = (
+        df["title"].fillna("") + " " + df["company"].fillna("") + " " + df["description"].fillna("")
+    ).str.lower()
+    vec = TfidfVectorizer().fit_transform(texts)
+    sim = cosine_similarity(vec)
+    pairs = []
+    for i in range(len(df)):
+        for j in range(i + 1, len(df)):
+            if sim[i, j] >= threshold:
+                pairs.append((df.iloc[i].to_dict(), df.iloc[j].to_dict(), float(sim[i, j])))
+    return pairs
