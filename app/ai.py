@@ -16,11 +16,15 @@ logger = logging.getLogger("job_fetch")
 
 REWRITE_PROMPT_TEMPLATE = '''
 Rewrite the following job description into concise Markdown without preamble.
-Start with a bullet list of required technologies, grouping alternatives with '/'.
+Start with two bullet lists: first list the required technologies and then list any bonus or nice-to-have skills. Group alternatives with '/'.
 Skip duplicate items and omit sections that cannot be filled.
 
 ---
-**Technical Requirements**
+**Required Skills**
+- item one
+- item two
+
+**Bonus Skills**
 - item one
 - item two
 
