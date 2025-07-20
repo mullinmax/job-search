@@ -522,3 +522,48 @@ def test_train_model_single_class(main):
 
     assert model_mod._model is None
 
+
+def test_predict_unrated_skips_invalid_embeddings(main):
+    main.init_db()
+    import importlib
+    import app.model as model_mod
+    importlib.reload(model_mod)
+    main.train_model = model_mod.train_model
+    main.predict_unrated = model_mod.predict_unrated
+    model_mod.DATABASE = main.DATABASE
+    model_mod._model = None
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    jobs = [
+        ("t", "J1", "C1", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/1", json.dumps([0.0, 0.0])),
+        ("t", "J2", "C2", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/2", json.dumps([1.0, 1.0])),
+        ("t", "J3", "C3", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/3", json.dumps([0.5, 0.5])),
+        ("t", "J4", "C4", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/4", json.dumps([])),
+    ]
+    for job in jobs:
+        cur.execute(
+            """
+            INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            job[:11],
+        )
+        job_id = cur.lastrowid
+        cur.execute(
+            "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+            (job_id, job[11]),
+        )
+        if job[4] == "d" and job[1] in {"J1", "J2"}:
+            cur.execute(
+                "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,0)",
+                (job_id, 1 if job[1] == "J2" else 0, ""),
+            )
+    conn.commit()
+    conn.close()
+
+    main.train_model()
+    preds = main.predict_unrated()
+    ids = {p["id"] for p in preds}
+    assert 3 in ids
+    assert 4 not in ids
+
