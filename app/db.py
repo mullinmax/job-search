@@ -59,6 +59,17 @@ def init_db() -> None:
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS clean_jobs(
+            job_id INTEGER PRIMARY KEY,
+            title TEXT,
+            company TEXT,
+            min_amount REAL,
+            max_amount REAL
+        )
+        """
+    )
     conn.commit()
     conn.close()
 
@@ -102,8 +113,17 @@ def get_random_job() -> Optional[Dict]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT j.*, s.summary FROM jobs j
+        SELECT j.id, j.site,
+               COALESCE(c.title, j.title) AS title,
+               COALESCE(c.company, j.company) AS company,
+               j.location, j.date_posted, j.description, j.interval,
+               COALESCE(c.min_amount, j.min_amount) AS min_amount,
+               COALESCE(c.max_amount, j.max_amount) AS max_amount,
+               j.currency, j.job_url, j.rating_count,
+               s.summary
+        FROM jobs j
         LEFT JOIN summaries s ON j.id = s.job_id
+        LEFT JOIN clean_jobs c ON j.id = c.job_id
         ORDER BY rating_count ASC, RANDOM() LIMIT 1
         """
     )
@@ -123,8 +143,17 @@ def get_job(job_id: int) -> Optional[Dict]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT j.*, s.summary FROM jobs j
+        SELECT j.id, j.site,
+               COALESCE(c.title, j.title) AS title,
+               COALESCE(c.company, j.company) AS company,
+               j.location, j.date_posted, j.description, j.interval,
+               COALESCE(c.min_amount, j.min_amount) AS min_amount,
+               COALESCE(c.max_amount, j.max_amount) AS max_amount,
+               j.currency, j.job_url, j.rating_count,
+               s.summary
+        FROM jobs j
         LEFT JOIN summaries s ON j.id = s.job_id
+        LEFT JOIN clean_jobs c ON j.id = c.job_id
         WHERE j.id=?
         """,
         (job_id,),
@@ -145,7 +174,13 @@ def list_jobs_by_feedback() -> List[Dict]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT j.*, 
+        SELECT j.id, j.site,
+               COALESCE(c.title, j.title) AS title,
+               COALESCE(c.company, j.company) AS company,
+               j.location, j.date_posted, j.description, j.interval,
+               COALESCE(c.min_amount, j.min_amount) AS min_amount,
+               COALESCE(c.max_amount, j.max_amount) AS max_amount,
+               j.currency, j.job_url, j.rating_count,
                COALESCE(SUM(CASE WHEN f.liked=1 THEN 1 ELSE 0 END), 0) AS likes,
                COALESCE(SUM(CASE WHEN f.liked=0 THEN 1 ELSE 0 END), 0) AS dislikes,
                CASE WHEN s.job_id IS NOT NULL THEN 1 ELSE 0 END AS has_summary,
@@ -154,6 +189,7 @@ def list_jobs_by_feedback() -> List[Dict]:
         LEFT JOIN feedback f ON j.id = f.job_id
         LEFT JOIN summaries s ON j.id = s.job_id
         LEFT JOIN embeddings e ON j.id = e.job_id
+        LEFT JOIN clean_jobs c ON j.id = c.job_id
         GROUP BY j.id
         ORDER BY likes DESC
         """
@@ -178,7 +214,14 @@ def aggregate_job_stats() -> Dict:
     by_date = {date: count for date, count in cur.fetchall()}
 
     cur.execute(
-        "SELECT AVG(min_amount), AVG(max_amount) FROM jobs WHERE min_amount IS NOT NULL AND max_amount IS NOT NULL"
+        """
+        SELECT AVG(COALESCE(c.min_amount, j.min_amount)),
+               AVG(COALESCE(c.max_amount, j.max_amount))
+        FROM jobs j
+        LEFT JOIN clean_jobs c ON j.id = c.job_id
+        WHERE COALESCE(c.min_amount, j.min_amount) IS NOT NULL
+          AND COALESCE(c.max_amount, j.max_amount) IS NOT NULL
+        """
     )
     avg_min, avg_max = cur.fetchone()
 
@@ -267,10 +310,16 @@ def list_liked_jobs() -> pd.DataFrame:
     """Return a DataFrame of positively rated jobs with rating timestamps."""
     conn = sqlite3.connect(app_main.DATABASE)
     query = """
-        SELECT j.company, j.title, j.location, j.date_posted,
-               f.rated_at, j.min_amount, j.max_amount, j.currency, j.job_url
+        SELECT COALESCE(c.company, j.company) AS company,
+               COALESCE(c.title, j.title) AS title,
+               j.location, j.date_posted,
+               f.rated_at,
+               COALESCE(c.min_amount, j.min_amount) AS min_amount,
+               COALESCE(c.max_amount, j.max_amount) AS max_amount,
+               j.currency, j.job_url
         FROM jobs j
         JOIN feedback f ON j.id = f.job_id
+        LEFT JOIN clean_jobs c ON j.id = c.job_id
         WHERE f.liked = 1
         ORDER BY f.rated_at DESC
     """

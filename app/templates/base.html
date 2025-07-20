@@ -18,7 +18,7 @@
       </div>
     </div>
   </nav>
-  <main class="container my-4 flex-fill">
+  <main class="{{ container_class|default('container') }} my-4 flex-fill">
   {% block content %}{% endblock %}
   </main>
   <footer class="footer text-center mt-auto">Build: {{ build_number }}</footer>

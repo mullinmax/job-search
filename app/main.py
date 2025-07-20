@@ -38,6 +38,7 @@ from .ai import (
     generate_summary,
     render_markdown,
     process_all_jobs,
+    regenerate_job_ai,
 )
 from .model import train_model, predict_unrated, evaluate_model
 
@@ -83,8 +84,8 @@ def format_salary(min_amount: float, max_amount: float, currency: str) -> str:
     """Return a salary range rounded to the nearest thousand with 'k' suffix."""
     def to_k(val: float) -> str:
         return f"{round(val / 1000):.0f}k"
-
-    return f"{to_k(min_amount)} - {to_k(max_amount)} {currency}"
+    cur = "$" if not currency or currency.upper() == "USD" else currency
+    return f"{cur}{to_k(min_amount)} - {cur}{to_k(max_amount)}"
 
 templates.env.globals["format_salary"] = format_salary
 
@@ -260,6 +261,7 @@ def stats(request: Request):
             "stats": agg,
             "predictions": predictions,
             "model_stats": model_stats,
+            "container_class": "container-fluid",
         },
     )
 
@@ -302,6 +304,15 @@ def reprocess_jobs_task() -> None:
     log_progress("Done")
 
 
+def regen_job_task(job_id: int) -> None:
+    """Regenerate AI data for a single role."""
+    if not OLLAMA_ENABLED:
+        return
+    log_progress(f"Regenerating job {job_id}")
+    regenerate_job_ai(job_id)
+    log_progress("Done")
+
+
 @app.post("/reprocess", response_class=HTMLResponse)
 def reprocess(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
@@ -313,6 +324,13 @@ def reprocess(request: Request, background_tasks: BackgroundTasks):
 def delete_ai(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
     background_tasks.add_task(clear_ai_data_task)
+    return templates.TemplateResponse("progress.html", {"request": request})
+
+
+@app.post("/regen_job/{job_id}", response_class=HTMLResponse)
+def regen_job(request: Request, job_id: int, background_tasks: BackgroundTasks):
+    progress_logs.clear()
+    background_tasks.add_task(regen_job_task, job_id)
     return templates.TemplateResponse("progress.html", {"request": request})
 
 
