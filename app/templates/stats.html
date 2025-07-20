@@ -3,7 +3,7 @@
 {% block content %}
 <h1 class="mb-4">Job Feedback</h1>
 <table class="table table-striped">
-  <tr><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th>AI</th><th></th></tr>
+  <tr><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th>AI</th><th></th><th></th></tr>
   {% for j in jobs %}
   <tr>
     <td>{{ loop.index }}</td>
@@ -25,6 +25,11 @@
       {% else %}
       -
       {% endif %}
+    </td>
+    <td>
+      <form method="post" action="/regen_job/{{ j.id }}" onsubmit="return confirm('Regenerate AI data for this job?');">
+        <button class="btn btn-sm btn-secondary" type="submit">Regen</button>
+      </form>
     </td>
   </tr>
   {% endfor %}
