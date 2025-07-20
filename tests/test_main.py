@@ -289,6 +289,13 @@ def test_render_markdown_lists(main):
     assert html.count("<li>") == 2
 
 
+def test_render_markdown_dedup(main):
+    text = "**Skills**\n- Python\n- Python\n- Java"
+    html = main.render_markdown(text)
+    assert html.count("<li>") == 2
+    assert "Python" in html and "Java" in html
+
+
 def test_clear_ai_data_and_reprocess_tasks(main, monkeypatch):
     main.init_db()
     df = pd.DataFrame([
