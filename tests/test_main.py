@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import json
 from collections import deque
 from pathlib import Path
 import sys
@@ -335,4 +336,75 @@ def test_clear_ai_data_and_reprocess_tasks(main, monkeypatch):
     main.reprocess_jobs_task()
     assert called.get("x")
     assert main.progress_logs[-1] == "Done"
+
+
+def test_evaluate_model(main):
+    main.init_db()
+    import importlib
+    import app.config as cfg
+    import app.model as model_mod
+    importlib.reload(cfg)
+    importlib.reload(model_mod)
+    main.train_model = model_mod.train_model
+    main.evaluate_model = model_mod.evaluate_model
+    # Ensure the model module uses the database for this test
+
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    jobs = [
+        (
+            "t",
+            "J1",
+            "C1",
+            "L",
+            "d",
+            "desc",
+            "year",
+            1,
+            2,
+            "USD",
+            "http://e.com/1",
+            json.dumps([0.0, 0.0]),
+            0,
+        ),
+        (
+            "t",
+            "J2",
+            "C2",
+            "L",
+            "d",
+            "desc",
+            "year",
+            1,
+            2,
+            "USD",
+            "http://e.com/2",
+            json.dumps([1.0, 1.0]),
+            1,
+        ),
+    ]
+    for job in jobs:
+        cur.execute(
+            """
+            INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            job[:11],
+        )
+        job_id = cur.lastrowid
+        cur.execute(
+            "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+            (job_id, job[11]),
+        )
+        cur.execute(
+            "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,0)",
+            (job_id, job[12], ""),
+        )
+    conn.commit()
+    conn.close()
+    main.train_model()
+    stats = main.evaluate_model()
+    assert stats["total"] == 2
+    assert stats["tp"] + stats["tn"] + stats["fp"] + stats["fn"] == 2
+    assert 0.0 <= stats["accuracy"] <= 1.0
 

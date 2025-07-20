@@ -37,7 +37,7 @@ from .ai import (
     render_markdown,
     process_all_jobs,
 )
-from .model import train_model, predict_unrated
+from .model import train_model, predict_unrated, evaluate_model
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -249,9 +249,16 @@ def stats(request: Request):
     jobs = list_jobs_by_feedback()
     agg = aggregate_job_stats()
     predictions = predict_unrated()
+    model_stats = evaluate_model()
     return templates.TemplateResponse(
         "stats.html",
-        {"request": request, "jobs": jobs, "stats": agg, "predictions": predictions},
+        {
+            "request": request,
+            "jobs": jobs,
+            "stats": agg,
+            "predictions": predictions,
+            "model_stats": model_stats,
+        },
     )
 
 
