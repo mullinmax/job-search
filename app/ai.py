@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List
+from typing import List, Optional, Tuple
 
 import requests
 
@@ -34,6 +34,14 @@ A short paragraph summarizing the role.
 Job posting:
 """{description}"""
 '''
+
+CLEAN_COMPANY_PROMPT = "Clean up the company name: '{name}'. Return the corrected capitalization without corporate suffixes." 
+CLEAN_TITLE_PROMPT = "Simplify the job title by removing words like full-time or hybrid but keep codes: '{title}'. Return the cleaned title." 
+SALARY_PROMPT = (
+    "Extract the annual salary range from this text. "
+    "If an hourly rate is given, multiply by 40 and 52 to convert. "
+    "Respond with two numbers like '50000,70000' or leave blank if unknown:\n{text}"
+)
 
 
 def ensure_model_downloaded() -> None:
@@ -79,6 +87,68 @@ def generate_summary(text: str) -> str:
         return ""
 
 
+def clean_company(name: str) -> str:
+    if not OLLAMA_ENABLED or not name:
+        return name
+    prompt = CLEAN_COMPANY_PROMPT.format(name=name)
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json().get("response", name).strip()
+    except Exception as exc:
+        logger.info(f"Company cleanup failed: {exc}")
+        return name
+
+
+def clean_title(title: str) -> str:
+    if not OLLAMA_ENABLED or not title:
+        return title
+    prompt = CLEAN_TITLE_PROMPT.format(title=title)
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False},
+            timeout=120,
+        )
+        r.raise_for_status()
+        return r.json().get("response", title).strip()
+    except Exception as exc:
+        logger.info(f"Title cleanup failed: {exc}")
+        return title
+
+
+from typing import Optional, Tuple
+import re
+
+
+def infer_salary(text: str) -> Optional[Tuple[float, float]]:
+    if not OLLAMA_ENABLED or not text:
+        return None
+    prompt = SALARY_PROMPT.format(text=text)
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False},
+            timeout=120,
+        )
+        r.raise_for_status()
+        resp = r.json().get("response", "")
+    except Exception as exc:
+        logger.info(f"Salary extraction failed: {exc}")
+        return None
+    nums = re.findall(r"\d+(?:\.\d+)?", resp)
+    if not nums:
+        return None
+    if len(nums) >= 2:
+        return float(nums[0]), float(nums[1])
+    val = float(nums[0])
+    return val, val
+
+
 from markdown import markdown
 
 
@@ -104,19 +174,28 @@ def process_all_jobs() -> None:
         return
     conn = sqlite3.connect(app_main.DATABASE)
     cur = conn.cursor()
-    cur.execute("SELECT id, description FROM jobs")
+    cur.execute("SELECT id, title, company, description, min_amount, max_amount FROM jobs")
     rows = cur.fetchall()
-    for job_id, desc in rows:
+    for job_id, title, company, desc, min_amt, max_amt in rows:
         if not desc:
             continue
         cur.execute("SELECT 1 FROM summaries WHERE job_id=?", (job_id,))
         have_sum = cur.fetchone()
         cur.execute("SELECT 1 FROM embeddings WHERE job_id=?", (job_id,))
         have_emb = cur.fetchone()
-        if have_sum and have_emb:
-            continue
+        cur.execute("SELECT 1 FROM clean_jobs WHERE job_id=?", (job_id,))
+        have_clean = cur.fetchone()
         summary = generate_summary(desc) if not have_sum else None
         embedding = embed_text(desc) if not have_emb else None
+        clean_data = None
+        if not have_clean:
+            salary = infer_salary(desc) or (min_amt, max_amt)
+            clean_data = (
+                clean_title(title),
+                clean_company(company),
+                salary[0],
+                salary[1],
+            )
         if summary is not None:
             cur.execute(
                 "INSERT OR IGNORE INTO summaries(job_id, summary) VALUES(?, ?)",
@@ -127,5 +206,49 @@ def process_all_jobs() -> None:
                 "INSERT OR IGNORE INTO embeddings(job_id, embedding) VALUES(?, ?)",
                 (job_id, json.dumps(embedding)),
             )
+        if clean_data is not None:
+            cur.execute(
+                "INSERT OR IGNORE INTO clean_jobs(job_id, title, company, min_amount, max_amount) VALUES(?, ?, ?, ?, ?)",
+                (job_id, *clean_data),
+            )
         conn.commit()
+    conn.close()
+
+
+def regenerate_job_ai(job_id: int) -> None:
+    if not OLLAMA_ENABLED:
+        return
+    conn = sqlite3.connect(app_main.DATABASE)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT title, company, description, min_amount, max_amount FROM jobs WHERE id=?",
+        (job_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return
+    title, company, desc, min_amt, max_amt = row
+    summary = generate_summary(desc) if desc else ""
+    embedding = embed_text(desc) if desc else []
+    salary = infer_salary(desc) or (min_amt, max_amt)
+    clean_data = (
+        clean_title(title),
+        clean_company(company),
+        salary[0],
+        salary[1],
+    )
+    cur.execute(
+        "INSERT OR REPLACE INTO summaries(job_id, summary) VALUES(?, ?)",
+        (job_id, summary),
+    )
+    cur.execute(
+        "INSERT OR REPLACE INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (job_id, json.dumps(embedding)),
+    )
+    cur.execute(
+        "INSERT OR REPLACE INTO clean_jobs(job_id, title, company, min_amount, max_amount) VALUES(?, ?, ?, ?, ?)",
+        (job_id, *clean_data),
+    )
+    conn.commit()
     conn.close()
