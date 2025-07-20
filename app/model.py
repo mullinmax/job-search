@@ -27,8 +27,22 @@ def train_model() -> None:
     if not rows:
         _model = None
         return
-    X = np.array([json.loads(r[1]) for r in rows])
-    y = np.array([r[0] for r in rows])
+    # Filter out invalid or empty embeddings
+    X_list = []
+    y_list = []
+    for liked, emb in rows:
+        vec = json.loads(emb)
+        if not vec:
+            continue
+        if X_list and len(vec) != len(X_list[0]):
+            continue
+        X_list.append(vec)
+        y_list.append(liked)
+    if not X_list:
+        _model = None
+        return
+    X = np.array(X_list)
+    y = np.array(y_list)
     # Skip training until we have at least two classes to avoid sklearn errors
     if len(set(y)) < 2:
         _model = None
@@ -54,9 +68,17 @@ def predict_unrated() -> List[Dict]:
     rows = cur.fetchall()
     conn.close()
     results = []
+    expected_dim = getattr(_model, "n_features_in_", None)
     for job_id, title, company, emb in rows:
         vec = json.loads(emb)
-        prob = float(_model.predict_proba([vec])[0, 1])
+        if not vec:
+            continue
+        if expected_dim is not None and len(vec) != expected_dim:
+            continue
+        try:
+            prob = float(_model.predict_proba([vec])[0, 1])
+        except Exception:
+            continue
         results.append({"id": job_id, "title": title, "company": company, "confidence": prob})
     results.sort(key=lambda x: x["confidence"], reverse=True)
     return results
@@ -99,8 +121,31 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    X = np.array([json.loads(r[1]) for r in rows])
-    y = np.array([r[0] for r in rows])
+    expected_dim = getattr(_model, "n_features_in_", None)
+    X_list = []
+    y_list = []
+    for liked, emb in rows:
+        vec = json.loads(emb)
+        if not vec:
+            continue
+        if expected_dim is not None and len(vec) != expected_dim:
+            continue
+        X_list.append(vec)
+        y_list.append(liked)
+    if not X_list:
+        return {
+            "total": 0,
+            "tp": 0,
+            "tn": 0,
+            "fp": 0,
+            "fn": 0,
+            "accuracy": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+        }
+
+    X = np.array(X_list)
+    y = np.array(y_list)
     preds = _model.predict(X)
 
     tp = int(np.sum((preds == 1) & (y == 1)))
