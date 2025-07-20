@@ -153,6 +153,8 @@ from markdown import markdown
 def render_markdown(text: str) -> str:
     if not text:
         return ""
+    text = text.strip()
+    text = re.sub(r'^`?`?\s*markdown\s*', '', text, flags=re.I)
     lines = [ln for ln in text.splitlines() if ln.strip() != "---"]
     cleaned = "\n".join(lines)
     fixed = []
