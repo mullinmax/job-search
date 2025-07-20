@@ -38,6 +38,7 @@ from .ai import (
     generate_summary,
     render_markdown,
     process_all_jobs,
+    regenerate_job_ai,
 )
 from .model import train_model, predict_unrated, evaluate_model
 
