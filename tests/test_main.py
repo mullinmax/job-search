@@ -462,3 +462,47 @@ def test_find_duplicate_jobs(main):
     a, b, sim = pairs[0]
     assert a["title"] == b["title"]
 
+
+def test_train_model_single_class(main):
+    """Model training should handle only one feedback class gracefully."""
+    main.init_db()
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            "t",
+            "J1",
+            "C1",
+            "L",
+            "d",
+            "desc",
+            "year",
+            1,
+            2,
+            "USD",
+            "http://e.com/1",
+        ),
+    )
+    job_id = cur.lastrowid
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (job_id, json.dumps([0.0, 0.0])),
+    )
+    conn.commit()
+    conn.close()
+
+    import app.model as model_mod
+    import app.db as db_mod
+    model_mod._model = None
+    db_mod._model = None
+    model_mod.DATABASE = main.DATABASE
+
+    # Should not raise even though only one class is present
+    main.record_feedback(job_id, True, "")
+
+    assert model_mod._model is None
+
