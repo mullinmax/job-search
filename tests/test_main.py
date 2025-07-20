@@ -70,8 +70,8 @@ def test_save_jobs_dedup_by_url(main):
             "title": "Engineer",
             "company": "A",
             "location": "L",
-            "date_posted": "d",
-            "description": "desc",
+            "date_posted": "2024-01-01",
+            "description": "old",
             "interval": "year",
             "min_amount": 1,
             "max_amount": 2,
@@ -83,8 +83,8 @@ def test_save_jobs_dedup_by_url(main):
             "title": "Engineer",
             "company": "A",
             "location": "L",
-            "date_posted": "d",
-            "description": "desc 2",
+            "date_posted": "2024-02-01",
+            "description": "new",
             "interval": "year",
             "min_amount": 1,
             "max_amount": 2,
@@ -95,10 +95,10 @@ def test_save_jobs_dedup_by_url(main):
     main.save_jobs(df)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM jobs")
-    count = cur.fetchone()[0]
+    cur.execute("SELECT description FROM jobs")
+    row = cur.fetchone()
     conn.close()
-    assert count == 1
+    assert row[0] == "new"
 
 
 def test_save_jobs_dedup_by_description(main):
@@ -109,7 +109,7 @@ def test_save_jobs_dedup_by_description(main):
             "title": "Engineer",
             "company": "A",
             "location": "L",
-            "date_posted": "d",
+            "date_posted": "2024-01-01",
             "description": "same desc",
             "interval": "year",
             "min_amount": 1,
@@ -122,7 +122,7 @@ def test_save_jobs_dedup_by_description(main):
             "title": "Engineer",
             "company": "A",
             "location": "L",
-            "date_posted": "d",
+            "date_posted": "2024-02-01",
             "description": "same desc",
             "interval": "year",
             "min_amount": 1,
@@ -134,10 +134,52 @@ def test_save_jobs_dedup_by_description(main):
     main.save_jobs(df)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM jobs")
-    count = cur.fetchone()[0]
+    cur.execute("SELECT job_url FROM jobs")
+    url = cur.fetchone()[0]
     conn.close()
-    assert count == 1
+    assert url == "http://desc.com/2"
+
+
+def test_get_random_job_sanitizes_html(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Eng",
+            "company": "C",
+            "location": "L",
+            "date_posted": "d",
+            "description": "<script>alert(1)</script><b>good</b>",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://safe.com/1",
+        }
+    ])
+    main.save_jobs(df)
+    job = main.get_random_job()
+    assert "<script" not in job["description"]
+
+
+def test_highlight_diffs_sanitizes(main):
+    a = {
+        "title": "<b>x</b>",
+        "company": "A",
+        "location": "L",
+        "description": "<img src=x onerror=alert(1)>",
+        "site": "s",
+    }
+    b = {
+        "title": "<b>x</b>",
+        "company": "A",
+        "location": "L",
+        "description": "ok",
+        "site": "s",
+    }
+    res_a, res_b = main.highlight_diffs(a, b)
+    assert "onerror" not in res_a["description_html"].lower()
+    assert "<script" not in res_a["description_html"].lower()
 
 
 def test_increment_rating_count(main):

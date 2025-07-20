@@ -12,3 +12,4 @@ openpyxl
 
 linkedin-jobs-scraper==5.0.2
 JobFunnel
+bleach

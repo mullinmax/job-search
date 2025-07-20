@@ -9,6 +9,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from . import main as app_main
 from .ai import OLLAMA_ENABLED, process_all_jobs, render_markdown
+from .utils import sanitize_html
 from .model import train_model, _model
 
 
@@ -29,7 +30,7 @@ def init_db() -> None:
             min_amount REAL,
             max_amount REAL,
             currency TEXT,
-            job_url TEXT UNIQUE,
+            job_url TEXT,
             rating_count INTEGER DEFAULT 0
         )
         """
@@ -108,25 +109,46 @@ def save_jobs(df: pd.DataFrame) -> None:
         values = tuple(row.get(c) for c in cols)
         cur.execute(
             """
-            INSERT OR IGNORE INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+            INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
             VALUES(?,?,?,?,?,?,?,?,?,?,?)
             """,
             values,
         )
 
-    # Remove roles that share a link or have an identical description
+    # Remove older duplicates keeping the most recently posted entry
     cur.execute(
         """
         DELETE FROM jobs
-        WHERE id NOT IN (SELECT MIN(id) FROM jobs GROUP BY job_url)
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY job_url
+                    ORDER BY
+                        CASE WHEN date_posted IS NULL THEN 1 ELSE 0 END,
+                        date_posted DESC,
+                        id DESC
+                ) AS rn
+                FROM jobs WHERE job_url IS NOT NULL
+            ) WHERE rn > 1
+        )
         """
     )
     cur.execute(
         """
         DELETE FROM jobs
-        WHERE description IS NOT NULL
-          AND description != ''
-          AND id NOT IN (SELECT MIN(id) FROM jobs GROUP BY description)
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id, ROW_NUMBER() OVER (
+                    PARTITION BY description
+                    ORDER BY
+                        CASE WHEN date_posted IS NULL THEN 1 ELSE 0 END,
+                        date_posted DESC,
+                        id DESC
+                ) AS rn
+                FROM jobs
+                WHERE description IS NOT NULL AND description != ''
+            ) WHERE rn > 1
+        )
         """
     )
 
@@ -161,7 +183,9 @@ def get_random_job() -> Optional[Dict]:
     if row:
         job = dict(zip(columns, row))
         if job.get("summary"):
-            job["summary"] = render_markdown(job["summary"])
+            job["summary"] = sanitize_html(render_markdown(job["summary"]))
+        if job.get("description"):
+            job["description"] = sanitize_html(job["description"])
         return job
     return None
 
@@ -192,7 +216,9 @@ def get_job(job_id: int) -> Optional[Dict]:
     if row:
         job = dict(zip(columns, row))
         if job.get("summary"):
-            job["summary"] = render_markdown(job["summary"])
+            job["summary"] = sanitize_html(render_markdown(job["summary"]))
+        if job.get("description"):
+            job["description"] = sanitize_html(job["description"])
         return job
     return None
 
