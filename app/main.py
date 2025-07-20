@@ -52,6 +52,7 @@ from .ai import (
     process_all_jobs,
     regenerate_job_ai,
 )
+from .utils import sanitize_html
 from .model import train_model, predict_unrated, evaluate_model
 
 app = FastAPI()
@@ -173,7 +174,9 @@ def highlight_diffs(a: Dict, b: Dict) -> Tuple[Dict[str, str], Dict[str, str]]:
                     a_parts.append(f"<mark>{html.escape(sub_a)}</mark>")
                 if sub_b:
                     b_parts.append(f"<mark>{html.escape(sub_b)}</mark>")
-        return "".join(a_parts), "".join(b_parts)
+        a_html = "".join(a_parts)
+        b_html = "".join(b_parts)
+        return sanitize_html(a_html), sanitize_html(b_html)
 
     fields = [
         ("title", False),

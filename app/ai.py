@@ -162,6 +162,7 @@ def infer_salary(text: str) -> Optional[Tuple[float, float]]:
 
 
 from markdown import markdown
+from .utils import sanitize_html
 
 
 def render_markdown(text: str) -> str:
@@ -185,7 +186,8 @@ def render_markdown(text: str) -> str:
         else:
             fixed.append(ln)
     cleaned = "\n".join(fixed)
-    return markdown(cleaned)
+    html = markdown(cleaned)
+    return sanitize_html(html)
 
 
 import sqlite3
