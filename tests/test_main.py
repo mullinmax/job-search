@@ -62,6 +62,84 @@ def test_save_and_get_random_job(main):
     assert job["company"] == "ACME"
 
 
+def test_save_jobs_dedup_by_url(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Engineer",
+            "company": "A",
+            "location": "L",
+            "date_posted": "d",
+            "description": "desc",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://dup.com/1",
+        },
+        {
+            "site": "t",
+            "title": "Engineer",
+            "company": "A",
+            "location": "L",
+            "date_posted": "d",
+            "description": "desc 2",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://dup.com/1",
+        },
+    ])
+    main.save_jobs(df)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM jobs")
+    count = cur.fetchone()[0]
+    conn.close()
+    assert count == 1
+
+
+def test_save_jobs_dedup_by_description(main):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Engineer",
+            "company": "A",
+            "location": "L",
+            "date_posted": "d",
+            "description": "same desc",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://desc.com/1",
+        },
+        {
+            "site": "t",
+            "title": "Engineer",
+            "company": "A",
+            "location": "L",
+            "date_posted": "d",
+            "description": "same desc",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://desc.com/2",
+        },
+    ])
+    main.save_jobs(df)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM jobs")
+    count = cur.fetchone()[0]
+    conn.close()
+    assert count == 1
+
+
 def test_increment_rating_count(main):
     main.init_db()
     conn = sqlite3.connect(main.DATABASE)
@@ -171,7 +249,7 @@ def test_fetch_jobs_task(main, monkeypatch):
     count = cur.fetchone()[0]
     conn.close()
 
-    assert count == 2
+    assert count == 1
     assert main.progress_logs[-1] == "Done"
 
 
@@ -454,7 +532,7 @@ def test_find_duplicate_jobs(main):
     main.init_db()
     df = pd.DataFrame([
         {"site": "a", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "work on things", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/1"},
-        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "work on things", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
+        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "working on things", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
     ])
     main.save_jobs(df)
     pairs = main.find_duplicate_jobs(0.5)
@@ -467,7 +545,7 @@ def test_mark_not_duplicates(main):
     main.init_db()
     df = pd.DataFrame([
         {"site": "a", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "desc", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/1"},
-        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "desc", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
+        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "desc slightly different", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
     ])
     main.save_jobs(df)
     pairs = main.find_duplicate_jobs(0.5)

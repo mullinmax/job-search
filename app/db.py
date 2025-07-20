@@ -113,6 +113,23 @@ def save_jobs(df: pd.DataFrame) -> None:
             """,
             values,
         )
+
+    # Remove roles that share a link or have an identical description
+    cur.execute(
+        """
+        DELETE FROM jobs
+        WHERE id NOT IN (SELECT MIN(id) FROM jobs GROUP BY job_url)
+        """
+    )
+    cur.execute(
+        """
+        DELETE FROM jobs
+        WHERE description IS NOT NULL
+          AND description != ''
+          AND id NOT IN (SELECT MIN(id) FROM jobs GROUP BY description)
+        """
+    )
+
     conn.commit()
     conn.close()
     if OLLAMA_ENABLED:
