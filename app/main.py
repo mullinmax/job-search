@@ -41,6 +41,7 @@ from .db import (
     record_feedback,
     cleanup_jobs,
     delete_job,
+    mark_not_duplicates,
     find_duplicate_jobs,
 )
 from .ai import (
@@ -477,6 +478,8 @@ def dedup_action(pair_ids: str = Form(...), dup: int = Form(...)):
     id1, id2 = [int(x) for x in pair_ids.split(",")]
     if dup:
         delete_job(random.choice([id1, id2]))
+    else:
+        mark_not_duplicates(id1, id2)
     return RedirectResponse("/dedup", status_code=303)
 
 
