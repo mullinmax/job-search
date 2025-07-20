@@ -29,6 +29,10 @@ def train_model() -> None:
         return
     X = np.array([json.loads(r[1]) for r in rows])
     y = np.array([r[0] for r in rows])
+    # Skip training until we have at least two classes to avoid sklearn errors
+    if len(set(y)) < 2:
+        _model = None
+        return
     _model = LogisticRegression(max_iter=1000)
     _model.fit(X, y)
 
