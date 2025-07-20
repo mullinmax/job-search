@@ -369,7 +369,7 @@ def find_duplicate_jobs(threshold: float = 0.85) -> List[Tuple[Dict, Dict, float
     """Return pairs of potentially duplicate jobs based on text similarity."""
     conn = sqlite3.connect(app_main.DATABASE)
     df = pd.read_sql_query(
-        "SELECT id, title, company, location, description FROM jobs", conn
+        "SELECT id, site, title, company, location, description FROM jobs", conn
     )
     cur = conn.cursor()
     cur.execute("SELECT job_id1, job_id2 FROM not_duplicates")

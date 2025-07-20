@@ -149,34 +149,48 @@ templates.env.globals["time_since_posted"] = time_since_posted
 
 
 def highlight_diffs(a: Dict, b: Dict) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """Return HTML strings for fields of two jobs with differences marked."""
+    """Return HTML strings for fields of two jobs with differences marked.
 
-    def markup(x: str, y: str) -> Tuple[str, str]:
+    The description field is rendered as Markdown/HTML so bullet lists display
+    correctly. Segments that differ are wrapped in ``<mark>`` tags. This may
+    break complex HTML slightly but keeps the original formatting."""
+
+    def markup(x: str, y: str, render: bool = False) -> Tuple[str, str]:
+        if render:
+            x = render_markdown(x)
+            y = render_markdown(y)
         sm = SequenceMatcher(None, x or "", y or "")
         a_parts: List[str] = []
         b_parts: List[str] = []
         for op, i1, i2, j1, j2 in sm.get_opcodes():
-            sub_a = html.escape(x[i1:i2])
-            sub_b = html.escape(y[j1:j2])
+            sub_a = x[i1:i2]
+            sub_b = y[j1:j2]
             if op == "equal":
                 a_parts.append(sub_a)
                 b_parts.append(sub_b)
             else:
                 if sub_a:
-                    a_parts.append(f"<mark>{sub_a}</mark>")
+                    a_parts.append(f"<mark>{html.escape(sub_a)}</mark>")
                 if sub_b:
-                    b_parts.append(f"<mark>{sub_b}</mark>")
+                    b_parts.append(f"<mark>{html.escape(sub_b)}</mark>")
         return "".join(a_parts), "".join(b_parts)
 
-    fields = ["title", "company", "location", "description"]
+    fields = [
+        ("title", False),
+        ("company", False),
+        ("location", False),
+        ("description", True),
+    ]
     res_a: Dict[str, str] = {}
     res_b: Dict[str, str] = {}
-    for f in fields:
-        res_a[f + "_html"], res_b[f + "_html"] = markup(str(a.get(f) or ""), str(b.get(f) or ""))
+    for f, render in fields:
+        res_a[f + "_html"], res_b[f + "_html"] = markup(str(a.get(f) or ""), str(b.get(f) or ""), render)
     res_a["summary"] = a.get("summary")
     res_b["summary"] = b.get("summary")
     res_a["id"] = a.get("id")
     res_b["id"] = b.get("id")
+    res_a["site"] = a.get("site")
+    res_b["site"] = b.get("site")
     return res_a, res_b
 
 def log_progress(message: str) -> None:

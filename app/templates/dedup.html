@@ -9,6 +9,7 @@
 <div class="job-grid">
   <div class="card job-card">
     <div class="card-body">
+      <p class="text-end text-muted small">Source: {{ pair[0].site }}</p>
       <h5 class="card-title">{{ pair[0].title_html | safe }} - {{ pair[0].company_html | safe }}</h5>
       <p class="card-subtitle mb-2 text-muted">{{ pair[0].location_html | safe }}</p>
       {% if pair[0].summary %}
@@ -19,6 +20,7 @@
   </div>
   <div class="card job-card">
     <div class="card-body">
+      <p class="text-end text-muted small">Source: {{ pair[1].site }}</p>
       <h5 class="card-title">{{ pair[1].title_html | safe }} - {{ pair[1].company_html | safe }}</h5>
       <p class="card-subtitle mb-2 text-muted">{{ pair[1].location_html | safe }}</p>
       {% if pair[1].summary %}
