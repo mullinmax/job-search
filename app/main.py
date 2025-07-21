@@ -390,6 +390,16 @@ def regen_job_task(job_id: int) -> None:
     log_progress("Done")
 
 
+def regen_jobs_task(job_ids: List[int]) -> None:
+    """Regenerate AI data for multiple roles."""
+    if not OLLAMA_ENABLED:
+        return
+    for jid in job_ids:
+        log_progress(f"Regenerating job {jid}")
+        regenerate_job_ai(jid)
+    log_progress("Done")
+
+
 @app.post("/reprocess", response_class=HTMLResponse)
 def reprocess(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
@@ -408,6 +418,13 @@ def delete_ai(request: Request, background_tasks: BackgroundTasks):
 def regen_job(request: Request, job_id: int, background_tasks: BackgroundTasks):
     progress_logs.clear()
     background_tasks.add_task(regen_job_task, job_id)
+    return templates.TemplateResponse("progress.html", {"request": request})
+
+
+@app.post("/regen_jobs", response_class=HTMLResponse)
+def regen_jobs(request: Request, background_tasks: BackgroundTasks, job_ids: List[int] = Form(...)):
+    progress_logs.clear()
+    background_tasks.add_task(regen_jobs_task, job_ids)
     return templates.TemplateResponse("progress.html", {"request": request})
 
 

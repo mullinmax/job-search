@@ -1,7 +1,7 @@
 import bleach
 
 ALLOWED_TAGS = list(bleach.sanitizer.ALLOWED_TAGS) + [
-    'p', 'pre', 'span', 'hr', 'br', 'div'
+    'p', 'pre', 'span', 'hr', 'br', 'div', 'mark'
 ]
 ALLOWED_ATTRIBUTES = {
     '*': ['class', 'style'],
