@@ -249,6 +249,8 @@ def get_random_job() -> Optional[Dict]:
         chosen = random.choices(jobs, weights=weights, k=1)[0]
     else:
         chosen = random.choice(jobs)
+        chosen["predicted_confidence"] = None
+        chosen["predicted_match"] = None
 
     chosen.pop("embedding", None)
     return chosen
@@ -297,6 +299,9 @@ def get_job(job_id: int) -> Optional[Dict]:
                     job["predicted_match"] = prob >= 0.5
                 except Exception:
                     pass
+        if "predicted_confidence" not in job:
+            job["predicted_confidence"] = None
+            job["predicted_match"] = None
         job.pop("embedding", None)
         return job
     return None
