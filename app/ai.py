@@ -48,6 +48,12 @@ SALARY_PROMPT = (
     "Respond with two numbers like '50000,70000' or leave blank if unknown:\n{text}"
 )
 
+TAG_PROMPT = (
+    "List concise, canonical tags for important skills or requirements in this job description. "
+    "Use common abbreviations like 'AWS' instead of 'Amazon Web Services'. "
+    "Return the tags as a comma separated list only.\n{text}"
+)
+
 
 def ensure_model_downloaded() -> None:
     if not OLLAMA_ENABLED:
@@ -161,6 +167,33 @@ def infer_salary(text: str) -> Optional[Tuple[float, float]]:
     return val, val
 
 
+def generate_tags(text: str) -> List[str]:
+    if not OLLAMA_ENABLED or not text:
+        return []
+    prompt = TAG_PROMPT.format(text=text)
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False},
+            timeout=120,
+        )
+        r.raise_for_status()
+        resp = r.json().get("response", "")
+    except Exception as exc:
+        logger.info(f"Tag generation failed: {exc}")
+        return []
+    tags = [t.strip() for t in resp.split(',') if t.strip()]
+    # Deduplicate while preserving order
+    seen = set()
+    unique = []
+    for t in tags:
+        tl = t.lower()
+        if tl not in seen:
+            seen.add(tl)
+            unique.append(t)
+    return unique
+
+
 from markdown import markdown
 from .utils import sanitize_html
 
@@ -209,9 +242,12 @@ def process_all_jobs() -> None:
         have_emb = cur.fetchone()
         cur.execute("SELECT 1 FROM clean_jobs WHERE job_id=?", (job_id,))
         have_clean = cur.fetchone()
+        cur.execute("SELECT 1 FROM job_tags WHERE job_id=?", (job_id,))
+        have_tags = cur.fetchone()
         summary = generate_summary(desc) if not have_sum else None
         embedding = embed_text(desc) if not have_emb else None
         clean_data = None
+        tags = generate_tags(desc) if not have_tags else None
         if not have_clean:
             salary = infer_salary(desc) or (min_amt, max_amt)
             clean_data = (
@@ -235,6 +271,11 @@ def process_all_jobs() -> None:
                 "INSERT OR IGNORE INTO clean_jobs(job_id, title, company, min_amount, max_amount) VALUES(?, ?, ?, ?, ?)",
                 (job_id, *clean_data),
             )
+        if tags is not None and tags:
+            cur.executemany(
+                "INSERT OR IGNORE INTO job_tags(job_id, tag) VALUES(?, ?)",
+                [(job_id, t) for t in tags],
+            )
         conn.commit()
     conn.close()
 
@@ -255,6 +296,7 @@ def regenerate_job_ai(job_id: int) -> None:
     title, company, desc, min_amt, max_amt = row
     summary = generate_summary(desc) if desc else ""
     embedding = embed_text(desc) if desc else []
+    tags = generate_tags(desc) if desc else []
     salary = infer_salary(desc) or (min_amt, max_amt)
     clean_data = (
         clean_title(title),
@@ -274,5 +316,11 @@ def regenerate_job_ai(job_id: int) -> None:
         "INSERT OR REPLACE INTO clean_jobs(job_id, title, company, min_amount, max_amount) VALUES(?, ?, ?, ?, ?)",
         (job_id, *clean_data),
     )
+    cur.execute("DELETE FROM job_tags WHERE job_id=?", (job_id,))
+    if tags:
+        cur.executemany(
+            "INSERT INTO job_tags(job_id, tag) VALUES(?, ?)",
+            [(job_id, t) for t in tags],
+        )
     conn.commit()
     conn.close()

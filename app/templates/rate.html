@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Rate Job{% endblock %}
+{% block content %}
+<h1 class="mb-4">{{ 'Why is this job a good fit?' if liked|int == 1 else "Why isn't this job a good fit?" }}</h1>
+<div class="card mb-4 mx-auto" style="max-width: 500px;">
+  <div class="card-body">
+    <h2 class="card-title"><a href="{{ job.job_url }}" target="_blank" rel="noopener">{{ job.title }}</a></h2>
+    <p class="card-subtitle mb-2 text-muted">{{ job.company }}</p>
+    <p class="mb-1">{{ job.location }}</p>
+  </div>
+</div>
+<form method="post" action="/feedback">
+  <input type="hidden" name="job_id" value="{{ job.id }}" />
+  <input type="hidden" name="liked" value="{{ liked }}" />
+  <div class="mb-3">
+    <label class="form-label">Select relevant tags</label>
+    <div class="d-flex flex-wrap gap-2">
+      {% for tag in tags %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="tag{{ loop.index }}" name="tags" value="{{ tag }}">
+        <label class="form-check-label" for="tag{{ loop.index }}">{{ tag }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <button class="btn {% if liked|int == 1 %}btn-success{% else %}btn-danger{% endif %}" type="submit">Submit</button>
+</form>
+{% endblock %}

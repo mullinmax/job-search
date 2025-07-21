@@ -42,7 +42,7 @@ def init_db() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             job_id INTEGER,
             liked INTEGER,
-            reason TEXT,
+            tags TEXT,
             rated_at INTEGER
         )
         """
@@ -71,6 +71,15 @@ def init_db() -> None:
             company TEXT,
             min_amount REAL,
             max_amount REAL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS job_tags(
+            job_id INTEGER,
+            tag TEXT,
+            PRIMARY KEY(job_id, tag)
         )
         """
     )
@@ -206,11 +215,14 @@ def get_random_job() -> Optional[Dict]:
                COALESCE(c.min_amount, j.min_amount) AS min_amount,
                COALESCE(c.max_amount, j.max_amount) AS max_amount,
                j.currency, j.job_url, j.rating_count,
-               s.summary, e.embedding
+               s.summary, e.embedding,
+               GROUP_CONCAT(t.tag) AS tags
         FROM jobs j
         LEFT JOIN summaries s ON j.id = s.job_id
         LEFT JOIN clean_jobs c ON j.id = c.job_id
         LEFT JOIN embeddings e ON j.id = e.job_id
+        LEFT JOIN job_tags t ON j.id = t.job_id
+        GROUP BY j.id
         ORDER BY rating_count ASC, RANDOM() LIMIT 20
         """
     )
@@ -227,6 +239,10 @@ def get_random_job() -> Optional[Dict]:
             job["summary"] = sanitize_html(render_markdown(job["summary"]))
         if job.get("description"):
             job["description"] = sanitize_html(job["description"])
+        if job.get("tags"):
+            job["tags"] = [t for t in str(job["tags"]).split(',') if t]
+        else:
+            job["tags"] = []
         jobs.append(job)
 
     if _model is not None:
@@ -268,11 +284,13 @@ def get_job(job_id: int) -> Optional[Dict]:
                COALESCE(c.min_amount, j.min_amount) AS min_amount,
                COALESCE(c.max_amount, j.max_amount) AS max_amount,
                j.currency, j.job_url, j.rating_count,
-               s.summary, e.embedding
+               s.summary, e.embedding,
+               GROUP_CONCAT(t.tag) AS tags
         FROM jobs j
         LEFT JOIN summaries s ON j.id = s.job_id
         LEFT JOIN clean_jobs c ON j.id = c.job_id
         LEFT JOIN embeddings e ON j.id = e.job_id
+        LEFT JOIN job_tags t ON j.id = t.job_id
         WHERE j.id=?
         """,
         (job_id,),
@@ -286,6 +304,10 @@ def get_job(job_id: int) -> Optional[Dict]:
             job["summary"] = sanitize_html(render_markdown(job["summary"]))
         if job.get("description"):
             job["description"] = sanitize_html(job["description"])
+        if job.get("tags"):
+            job["tags"] = [t for t in str(job["tags"]).split(',') if t]
+        else:
+            job["tags"] = []
         if _model is not None and job.get("embedding"):
             expected_dim = getattr(_model, "n_features_in_", None)
             try:
@@ -397,7 +419,7 @@ def increment_rating_count(job_id: int) -> None:
 def record_feedback(
     job_id: int,
     liked: bool,
-    reason: Optional[str],
+    tags: List[str] | None,
     rated_at: Optional[int] = None,
 ) -> None:
     """Insert a feedback entry and retrain the model if needed."""
@@ -407,8 +429,8 @@ def record_feedback(
     if rated_at is None:
         rated_at = int(time.time())
     cur.execute(
-        "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,?)",
-        (job_id, int(liked), reason, rated_at),
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,?)",
+        (job_id, int(liked), ",".join(tags or []), rated_at),
     )
     conn.commit()
     conn.close()
@@ -482,6 +504,7 @@ def delete_job(job_id: int) -> None:
     cur.execute("DELETE FROM summaries WHERE job_id=?", (job_id,))
     cur.execute("DELETE FROM embeddings WHERE job_id=?", (job_id,))
     cur.execute("DELETE FROM feedback WHERE job_id=?", (job_id,))
+    cur.execute("DELETE FROM job_tags WHERE job_id=?", (job_id,))
     conn.commit()
     conn.close()
 
@@ -491,13 +514,13 @@ def _transfer_feedback(cur: sqlite3.Cursor, src: int, dest: int) -> None:
     cur.execute("SELECT COUNT(*) FROM feedback WHERE job_id=?", (dest,))
     if cur.fetchone()[0] == 0:
         cur.execute(
-            "SELECT liked, reason, rated_at FROM feedback WHERE job_id=?",
+            "SELECT liked, tags, rated_at FROM feedback WHERE job_id=?",
             (src,),
         )
         rows = cur.fetchall()
         if rows:
             cur.executemany(
-                "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,?)",
+                "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,?)",
                 [(dest, r[0], r[1], r[2]) for r in rows],
             )
             cur.execute("SELECT rating_count FROM jobs WHERE id=?", (dest,))
@@ -508,6 +531,14 @@ def _transfer_feedback(cur: sqlite3.Cursor, src: int, dest: int) -> None:
                 (cnt, dest),
             )
         cur.execute("DELETE FROM feedback WHERE job_id=?", (src,))
+    cur.execute("SELECT tag FROM job_tags WHERE job_id=?", (src,))
+    tags = [r[0] for r in cur.fetchall()]
+    if tags:
+        cur.executemany(
+            "INSERT OR IGNORE INTO job_tags(job_id, tag) VALUES(?, ?)",
+            [(dest, t) for t in tags],
+        )
+    cur.execute("DELETE FROM job_tags WHERE job_id=?", (src,))
 
 
 def mark_not_duplicates(id1: int, id2: int) -> None:

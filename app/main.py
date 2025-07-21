@@ -315,23 +315,20 @@ def swipe(request: Request, job_id: Optional[int] = None):
     return templates.TemplateResponse("swipe.html", {"request": request, "job": job})
 
 
-@app.get("/reject/{job_id}", response_class=HTMLResponse)
-def reject_form(request: Request, job_id: int):
-    conn = sqlite3.connect(DATABASE)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM jobs WHERE id=?", (job_id,))
-    row = cur.fetchone()
-    columns = [c[0] for c in cur.description]
-    conn.close()
-    if not row:
+@app.get("/rate/{job_id}", response_class=HTMLResponse)
+def rate_form(request: Request, job_id: int, liked: int):
+    job = get_job(job_id)
+    if not job:
         return RedirectResponse("/swipe", status_code=303)
-    job = dict(zip(columns, row))
-    return templates.TemplateResponse("reject.html", {"request": request, "job": job})
+    return templates.TemplateResponse(
+        "rate.html",
+        {"request": request, "job": job, "liked": liked, "tags": job.get("tags", [])},
+    )
 
 
 @app.post("/feedback")
-def feedback(job_id: int = Form(...), liked: int = Form(...), reason: str = Form("", max_length=200)):
-    record_feedback(job_id, bool(liked), reason or None)
+def feedback(job_id: int = Form(...), liked: int = Form(...), tags: List[str] = Form(None)):
+    record_feedback(job_id, bool(liked), tags or [])
     return RedirectResponse("/swipe", status_code=303)
 
 
@@ -590,7 +587,7 @@ def import_custom_csv(data: bytes) -> int:
     for row, job_id in zip(df.itertuples(), ids):
         rated = pd.to_datetime(getattr(row, "Farmed Date", None), errors="coerce")
         ts = int(rated.timestamp()) if not pd.isna(rated) else None
-        record_feedback(job_id, True, None, rated_at=ts)
+        record_feedback(job_id, True, [], rated_at=ts)
     return len(ids)
 
 
