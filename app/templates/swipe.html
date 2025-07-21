@@ -33,12 +33,8 @@
   </div>
 </div>
 <div class="d-flex justify-content-center gap-4 swipe-buttons">
-  <form method="post" action="/feedback">
-    <input type="hidden" name="job_id" value="{{ job.id }}" />
-    <input type="hidden" name="liked" value="1" />
-    <button class="btn btn-success good" type="submit">✔</button>
-  </form>
+  <a class="btn btn-success good" href="/rate/{{ job.id }}?liked=1">✔</a>
   <a class="btn btn-secondary skip" href="/swipe">Skip</a>
-  <a class="btn btn-danger bad" href="/reject/{{ job.id }}">✖</a>
+  <a class="btn btn-danger bad" href="/rate/{{ job.id }}?liked=0">✖</a>
 </div>
 {% endblock %}

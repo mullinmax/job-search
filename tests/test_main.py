@@ -37,6 +37,7 @@ def test_init_db_creates_tables(main):
     conn.close()
     assert "jobs" in tables
     assert "feedback" in tables
+    assert "job_tags" in tables
 
 
 def test_save_and_get_random_job(main):
@@ -245,7 +246,7 @@ def test_record_feedback(main):
     conn.commit()
     conn.close()
 
-    main.record_feedback(job_id, True, "good")
+    main.record_feedback(job_id, True, ["good"])
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM feedback")
@@ -534,7 +535,7 @@ def test_evaluate_model(main):
             (job_id, job[11]),
         )
         cur.execute(
-            "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,0)",
+            "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,0)",
             (job_id, job[12], ""),
         )
     conn.commit()
@@ -675,7 +676,7 @@ def test_predict_unrated_skips_invalid_embeddings(main):
         )
         if job[4] == "d" and job[1] in {"J1", "J2"}:
             cur.execute(
-                "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,0)",
+                "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,0)",
                 (job_id, 1 if job[1] == "J2" else 0, ""),
             )
     conn.commit()

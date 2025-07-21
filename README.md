@@ -47,8 +47,9 @@ docker compose up
 4. Visit `http://localhost:8000` to enter search terms and fetch jobs.
    After results are saved you can swipe through postings one at a time
    using the green ✓ button to mark a good match or the red ✖ button to
-   reject it. When rejecting a job you will be asked to provide a reason.
-   Feedback is stored in a SQLite database inside the container to help train a future matching model.
+   reject it. After choosing either option you will be shown a list of
+   tags extracted from the posting and can select which ones influenced
+   your decision. Feedback is stored in a SQLite database inside the container to help train a future matching model.
    If any job boards fail to fetch (for example due to network restrictions) the
    progress screen now shows detailed logs so you can see which sources were skipped.
    A statistics page summarizes stored jobs and reports model accuracy, precision and recall so you can track its performance.
