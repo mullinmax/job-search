@@ -846,3 +846,85 @@ def test_dedup_action_keeps_uploaded(main):
     conn.close()
     assert site == "upload"
 
+
+def test_model_uses_tags(main):
+    main.init_db()
+    import importlib
+    import json
+    import app.model as model_mod
+    importlib.reload(model_mod)
+    main.train_model = model_mod.train_model
+    main.predict_job = model_mod.predict_job
+    model_mod.DATABASE = main.DATABASE
+    model_mod._model = None
+    model_mod._tag_binarizer = None
+
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    # Job liked with Python tag
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "J1", "C", "L", "d", "desc", "year", 1, 2, "USD", "u1"),
+    )
+    j1 = cur.lastrowid
+    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j1, json.dumps([1.0, 0.0])))
+    cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'python')", (j1,))
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,0)",
+        (j1, 1, "python"),
+    )
+
+    # Job disliked with Java tag
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "J2", "C", "L", "d", "desc", "year", 1, 2, "USD", "u2"),
+    )
+    j2 = cur.lastrowid
+    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j2, json.dumps([1.0, 0.0])))
+    cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'java')", (j2,))
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,0)",
+        (j2, 0, "java"),
+    )
+
+    # Two new unrated jobs for prediction
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "J3", "C", "L", "d", "desc", "year", 1, 2, "USD", "u3"),
+    )
+    j3 = cur.lastrowid
+    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j3, json.dumps([1.0, 0.0])))
+    cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'python')", (j3,))
+
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "J4", "C", "L", "d", "desc", "year", 1, 2, "USD", "u4"),
+    )
+    j4 = cur.lastrowid
+    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j4, json.dumps([1.0, 0.0])))
+    cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'java')", (j4,))
+    conn.commit()
+    conn.close()
+
+    main.train_model()
+    binarizer = model_mod._tag_binarizer
+    assert binarizer is not None and set(binarizer.classes_) == {"java", "python"}
+
+    pred_py = main.predict_job(j3)
+    pred_java = main.predict_job(j4)
+    assert pred_py and pred_java
+    assert pred_py[0] != pred_java[0]
+
+
