@@ -441,7 +441,8 @@ def export_likes():
     """Download positively rated jobs as an Excel file."""
     df = list_liked_jobs()
     if not df.empty:
-        df["Date Rated"] = pd.to_datetime(df["rated_at"], unit="s").dt.date
+        rated = pd.to_datetime(df["rated_at"], unit="s", errors="coerce")
+        df["Date Rated"] = rated.dt.strftime("%-m/%-d/%Y")
         df["Pay Range"] = df.apply(
             lambda r: format_salary(r["min_amount"], r["max_amount"], r["currency"])
             if (
@@ -455,6 +456,7 @@ def export_likes():
         )
         df = df.rename(
             columns={
+                "site": "Source",
                 "company": "Company",
                 "title": "Job Title",
                 "location": "Location",
@@ -469,6 +471,7 @@ def export_likes():
         df["Notes"] = ""
         df = df[
             [
+                "Source",
                 "Company",
                 "Job Title",
                 "Location",
@@ -482,6 +485,7 @@ def export_likes():
     else:
         df = pd.DataFrame(
             columns=[
+                "Source",
                 "Company",
                 "Job Title",
                 "Location",

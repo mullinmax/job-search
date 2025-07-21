@@ -478,7 +478,8 @@ def list_liked_jobs() -> pd.DataFrame:
     """Return a DataFrame of positively rated jobs with rating timestamps."""
     conn = sqlite3.connect(app_main.DATABASE)
     query = """
-        SELECT COALESCE(c.company, j.company) AS company,
+        SELECT j.site,
+               COALESCE(c.company, j.company) AS company,
                COALESCE(c.title, j.title) AS title,
                j.location, j.date_posted,
                f.rated_at,

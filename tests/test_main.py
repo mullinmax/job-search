@@ -565,7 +565,8 @@ def test_list_liked_jobs(main):
         }
     ])
     main.save_jobs(df)
-    main.record_feedback(1, True, "")
+    ts = int(pd.Timestamp("2025-07-21").timestamp())
+    main.record_feedback(1, True, "", rated_at=ts)
     liked = main.list_liked_jobs()
     assert len(liked) == 1
     assert liked["company"].iloc[0] == "C"
@@ -712,7 +713,8 @@ def test_export_likes_formats_fields(main, monkeypatch):
         }
     ])
     main.save_jobs(df)
-    main.record_feedback(1, True, "")
+    ts = int(pd.Timestamp("2025-07-21").timestamp())
+    main.record_feedback(1, True, "", rated_at=ts)
 
     captured = {}
 
@@ -723,9 +725,11 @@ def test_export_likes_formats_fields(main, monkeypatch):
     main.export_likes()
 
     out = captured["df"]
+    assert list(out.columns)[0] == "Source"
     assert out.loc[0, "Location"] == "Cincinnati, OH"
     assert out.loc[0, "Pay Range"] == ""
     assert out.loc[0, "Date Posted"] == "7/20/2025"
+    assert out.loc[0, "Date Rated"] == "7/21/2025"
 
 
 def test_import_custom_csv_marks_match(main):
