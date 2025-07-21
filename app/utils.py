@@ -4,7 +4,7 @@ ALLOWED_TAGS = list(bleach.sanitizer.ALLOWED_TAGS) + [
     'p', 'pre', 'span', 'hr', 'br', 'div', 'mark'
 ]
 ALLOWED_ATTRIBUTES = {
-    '*': ['class', 'style'],
+    '*': ['class'],
     'a': ['href', 'rel', 'target'],
 }
 
