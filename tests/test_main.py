@@ -729,7 +729,7 @@ def test_export_likes_formats_fields(main, monkeypatch):
     assert out.loc[0, "Location"] == "Cincinnati, OH"
     assert out.loc[0, "Pay Range"] == ""
     assert out.loc[0, "Date Posted"] == "7/20/2025"
-    assert out.loc[0, "Date Rated"] == "7/21/2025"
+    assert out.loc[0, "Farmed Date"] == "7/21/2025"
 
 
 def test_import_custom_csv_marks_match(main):

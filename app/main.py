@@ -442,7 +442,10 @@ def export_likes():
     df = list_liked_jobs()
     if not df.empty:
         rated = pd.to_datetime(df["rated_at"], unit="s", errors="coerce")
-        df["Date Rated"] = rated.dt.strftime("%-m/%-d/%Y")
+        df["Farmed Date"] = rated.dt.strftime("%-m/%-d/%Y")
+
+        df["min_amount"] = pd.to_numeric(df["min_amount"], errors="coerce")
+        df["max_amount"] = pd.to_numeric(df["max_amount"], errors="coerce")
         df["Pay Range"] = df.apply(
             lambda r: format_salary(r["min_amount"], r["max_amount"], r["currency"])
             if (
@@ -476,7 +479,7 @@ def export_likes():
                 "Job Title",
                 "Location",
                 "Date Posted",
-                "Date Rated",
+                "Farmed Date",
                 "Pay Range",
                 "Notes",
                 "Link",
@@ -490,7 +493,7 @@ def export_likes():
                 "Job Title",
                 "Location",
                 "Date Posted",
-                "Date Rated",
+                "Farmed Date",
                 "Pay Range",
                 "Notes",
                 "Link",
