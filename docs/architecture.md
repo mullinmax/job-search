@@ -12,8 +12,9 @@ This project is a small job search and ranking tool built with **FastAPI**. Jobs
 - **Job Scraping** – `jobspy.scrape_jobs`
   - Called from the background task to collect jobs from sites like LinkedIn, Indeed, ZipRecruiter, Glassdoor and Google.
 - **Database** – SQLite stored at the path in the `DATABASE` env var.
-  - Tables: `jobs`, `feedback`, `embeddings` and `summaries`.
+  - Tables: `jobs`, `feedback`, `embeddings`, `summaries` and `job_tags`.
   - `jobs` holds raw postings. `feedback` records user ratings and reasons.
+  - `job_tags` stores skills extracted from each description.
   - `embeddings` and `summaries` are optionally populated using Ollama.
 - **Ollama Integration**
   - When `OLLAMA_BASE_URL` is set, descriptions are summarized and embedded via Ollama’s API. The model name defaults to `llama3` and can be changed with `OLLAMA_MODEL`.

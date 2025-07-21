@@ -4,48 +4,69 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import MultiLabelBinarizer
 
 from .config import DATABASE
 
 _model: LogisticRegression | None = None
+_tag_binarizer: MultiLabelBinarizer | None = None
 
 
 def train_model() -> None:
-    """Train a logistic regression model from feedback and embeddings."""
-    global _model
+    """Train a logistic regression model from feedback, embeddings and tags."""
+    global _model, _tag_binarizer
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT f.liked, e.embedding
+        SELECT f.liked, e.embedding, f.tags, GROUP_CONCAT(t.tag)
         FROM feedback f
         JOIN embeddings e ON f.job_id = e.job_id
+        LEFT JOIN job_tags t ON f.job_id = t.job_id
+        GROUP BY f.id
         """
     )
     rows = cur.fetchall()
     conn.close()
     if not rows:
         _model = None
+        _tag_binarizer = None
         return
-    # Filter out invalid or empty embeddings
-    X_list = []
-    y_list = []
-    for liked, emb in rows:
+    X_emb: List[List[float]] = []
+    tag_sets: List[List[str]] = []
+    y_list: List[int] = []
+    for liked, emb, fb_tags, job_tags in rows:
         vec = json.loads(emb)
         if not vec:
             continue
-        if X_list and len(vec) != len(X_list[0]):
+        if X_emb and len(vec) != len(X_emb[0]):
             continue
-        X_list.append(vec)
+        tags = []
+        if fb_tags:
+            tags.extend(t.strip() for t in str(fb_tags).split(',') if t.strip())
+        if job_tags:
+            tags.extend(t.strip() for t in str(job_tags).split(',') if t.strip())
+        seen = set()
+        uniq = []
+        for t in tags:
+            tl = t.lower()
+            if tl not in seen:
+                seen.add(tl)
+                uniq.append(t)
+        X_emb.append(vec)
+        tag_sets.append(uniq)
         y_list.append(liked)
-    if not X_list:
+    if not X_emb:
         _model = None
+        _tag_binarizer = None
         return
-    X = np.array(X_list)
+    _tag_binarizer = MultiLabelBinarizer()
+    tag_matrix = _tag_binarizer.fit_transform(tag_sets)
+    X = np.hstack([np.array(X_emb), tag_matrix])
     y = np.array(y_list)
-    # Skip training until we have at least two classes to avoid sklearn errors
     if len(set(y)) < 2:
         _model = None
+        _tag_binarizer = None
         return
     _model = LogisticRegression(max_iter=1000)
     _model.fit(X, y)
@@ -59,27 +80,36 @@ def predict_unrated() -> List[Dict]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT j.id, j.title, j.company, e.embedding
+        SELECT j.id, j.title, j.company, e.embedding,
+               GROUP_CONCAT(t.tag)
         FROM jobs j
         JOIN embeddings e ON j.id = e.job_id
+        LEFT JOIN job_tags t ON j.id = t.job_id
         WHERE j.id NOT IN (SELECT job_id FROM feedback)
+        GROUP BY j.id
         """
     )
     rows = cur.fetchall()
     conn.close()
     results = []
     expected_dim = getattr(_model, "n_features_in_", None)
-    for job_id, title, company, emb in rows:
+    for job_id, title, company, emb, tags in rows:
         vec = json.loads(emb)
         if not vec:
             continue
-        if expected_dim is not None and len(vec) != expected_dim:
+        tag_list = [t.strip() for t in str(tags).split(',') if t.strip()] if tags else []
+        if _tag_binarizer is not None:
+            tag_vec = _tag_binarizer.transform([tag_list])[0]
+            feat = np.hstack([vec, tag_vec])
+        else:
+            feat = vec
+        if expected_dim is not None and len(feat) != expected_dim:
             continue
         try:
-            prob = float(_model.predict_proba([vec])[0, 1])
+            prob = float(_model.predict_proba([feat])[0, 1])
+            match = bool(_model.predict([feat])[0])
         except Exception:
             continue
-        match = prob >= 0.5
         results.append(
             {
                 "id": job_id,
@@ -99,7 +129,16 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
         return None
     conn = sqlite3.connect(DATABASE)
     cur = conn.cursor()
-    cur.execute("SELECT embedding FROM embeddings WHERE job_id=?", (job_id,))
+    cur.execute(
+        """
+        SELECT e.embedding, GROUP_CONCAT(t.tag)
+        FROM embeddings e
+        LEFT JOIN job_tags t ON e.job_id = t.job_id
+        WHERE e.job_id=?
+        GROUP BY e.job_id
+        """,
+        (job_id,),
+    )
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -108,14 +147,22 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
         vec = json.loads(row[0])
     except Exception:
         return None
+    tags = row[1] if row and len(row) > 1 else None
+    tag_list = [t.strip() for t in str(tags).split(',') if t.strip()] if tags else []
+    if _tag_binarizer is not None:
+        tag_vec = _tag_binarizer.transform([tag_list])[0]
+        feat = np.hstack([vec, tag_vec])
+    else:
+        feat = vec
     expected_dim = getattr(_model, "n_features_in_", None)
-    if not vec or (expected_dim is not None and len(vec) != expected_dim):
+    if not vec or (expected_dim is not None and len(feat) != expected_dim):
         return None
     try:
-        prob = float(_model.predict_proba([vec])[0, 1])
+        prob = float(_model.predict_proba([feat])[0, 1])
+        match = bool(_model.predict([feat])[0])
     except Exception:
         return None
-    return prob >= 0.5, prob
+    return match, prob
 
 
 def evaluate_model() -> Dict[str, float | int]:
@@ -136,9 +183,11 @@ def evaluate_model() -> Dict[str, float | int]:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT f.liked, e.embedding
+        SELECT f.liked, e.embedding, f.tags, GROUP_CONCAT(t.tag)
         FROM feedback f
         JOIN embeddings e ON f.job_id = e.job_id
+        LEFT JOIN job_tags t ON f.job_id = t.job_id
+        GROUP BY f.id
         """
     )
     rows = cur.fetchall()
@@ -156,17 +205,31 @@ def evaluate_model() -> Dict[str, float | int]:
         }
 
     expected_dim = getattr(_model, "n_features_in_", None)
-    X_list = []
-    y_list = []
-    for liked, emb in rows:
+    X_emb: List[List[float]] = []
+    tag_sets: List[List[str]] = []
+    y_list: List[int] = []
+    for liked, emb, fb_tags, job_tags in rows:
         vec = json.loads(emb)
         if not vec:
             continue
-        if expected_dim is not None and len(vec) != expected_dim:
+        if X_emb and len(vec) != len(X_emb[0]):
             continue
-        X_list.append(vec)
+        tags = []
+        if fb_tags:
+            tags.extend(t.strip() for t in str(fb_tags).split(',') if t.strip())
+        if job_tags:
+            tags.extend(t.strip() for t in str(job_tags).split(',') if t.strip())
+        seen = set()
+        uniq = []
+        for t in tags:
+            tl = t.lower()
+            if tl not in seen:
+                seen.add(tl)
+                uniq.append(t)
+        X_emb.append(vec)
+        tag_sets.append(uniq)
         y_list.append(liked)
-    if not X_list:
+    if not X_emb:
         return {
             "total": 0,
             "tp": 0,
@@ -178,7 +241,19 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    X = np.array(X_list)
+    if _tag_binarizer is None:
+        return {
+            "total": 0,
+            "tp": 0,
+            "tn": 0,
+            "fp": 0,
+            "fn": 0,
+            "accuracy": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+        }
+    tag_matrix = _tag_binarizer.transform(tag_sets) if tag_sets else np.zeros((len(tag_sets), 0))
+    X = np.hstack([np.array(X_emb), tag_matrix])
     y = np.array(y_list)
     preds = _model.predict(X)
 

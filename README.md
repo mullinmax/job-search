@@ -49,7 +49,8 @@ docker compose up
    using the green ✓ button to mark a good match or the red ✖ button to
    reject it. After choosing either option you will be shown a list of
    tags extracted from the posting and can select which ones influenced
-   your decision. Feedback is stored in a SQLite database inside the container to help train a future matching model.
+   your decision. These tags are stored along with your feedback and
+   incorporated when training the matching model.
    If any job boards fail to fetch (for example due to network restrictions) the
    progress screen now shows detailed logs so you can see which sources were skipped.
    A statistics page summarizes stored jobs and reports model accuracy, precision and recall so you can track its performance.
