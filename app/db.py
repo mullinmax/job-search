@@ -109,13 +109,36 @@ def save_jobs(df: pd.DataFrame) -> List[int]:
     inserted_urls = []
     for _, row in df.iterrows():
         values = tuple(row.get(c) for c in cols)
-        cur.execute(
-            """
-            INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            values,
-        )
+        try:
+            cur.execute(
+                """
+                INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(job_url) DO UPDATE SET
+                    site=excluded.site,
+                    title=excluded.title,
+                    company=excluded.company,
+                    location=excluded.location,
+                    date_posted=excluded.date_posted,
+                    description=excluded.description,
+                    interval=excluded.interval,
+                    min_amount=excluded.min_amount,
+                    max_amount=excluded.max_amount,
+                    currency=excluded.currency
+                """,
+                values,
+            )
+        except sqlite3.OperationalError as e:
+            if "ON CONFLICT" in str(e):
+                cur.execute(
+                    """
+                    INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    values,
+                )
+            else:
+                raise
         inserted_urls.append(row.get("job_url"))
 
     # Merge duplicates by job_url and description
