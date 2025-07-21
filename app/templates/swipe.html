@@ -19,7 +19,7 @@
     {% else %}
     <p>No description available.</p>
     {% endif %}
-    {% if job.predicted_confidence is not none %}
+    {% if job.predicted_confidence is defined and job.predicted_confidence is not none %}
     <div class="alert alert-info text-center mt-3">
       Model prediction:
       {% if job.predicted_match %}
