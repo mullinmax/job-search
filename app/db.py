@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import time
+import random
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
@@ -205,24 +206,52 @@ def get_random_job() -> Optional[Dict]:
                COALESCE(c.min_amount, j.min_amount) AS min_amount,
                COALESCE(c.max_amount, j.max_amount) AS max_amount,
                j.currency, j.job_url, j.rating_count,
-               s.summary
+               s.summary, e.embedding
         FROM jobs j
         LEFT JOIN summaries s ON j.id = s.job_id
         LEFT JOIN clean_jobs c ON j.id = c.job_id
-        ORDER BY rating_count ASC, RANDOM() LIMIT 1
+        LEFT JOIN embeddings e ON j.id = e.job_id
+        ORDER BY rating_count ASC, RANDOM() LIMIT 20
         """
     )
-    row = cur.fetchone()
+    rows = cur.fetchall()
     columns = [c[0] for c in cur.description]
     conn.close()
-    if row:
+    if not rows:
+        return None
+
+    jobs = []
+    for row in rows:
         job = dict(zip(columns, row))
         if job.get("summary"):
             job["summary"] = sanitize_html(render_markdown(job["summary"]))
         if job.get("description"):
             job["description"] = sanitize_html(job["description"])
-        return job
-    return None
+        jobs.append(job)
+
+    if _model is not None:
+        weights = []
+        expected_dim = getattr(_model, "n_features_in_", None)
+        for job in jobs:
+            try:
+                vec = json.loads(job.get("embedding") or "null")
+            except Exception:
+                vec = None
+            prob = 0.5
+            if vec and (expected_dim is None or len(vec) == expected_dim):
+                try:
+                    prob = float(_model.predict_proba([vec])[0, 1])
+                except Exception:
+                    prob = 0.5
+            job["predicted_confidence"] = prob
+            job["predicted_match"] = prob >= 0.5
+            weights.append(1.0 + prob)
+        chosen = random.choices(jobs, weights=weights, k=1)[0]
+    else:
+        chosen = random.choice(jobs)
+
+    chosen.pop("embedding", None)
+    return chosen
 
 
 def get_job(job_id: int) -> Optional[Dict]:
@@ -237,10 +266,11 @@ def get_job(job_id: int) -> Optional[Dict]:
                COALESCE(c.min_amount, j.min_amount) AS min_amount,
                COALESCE(c.max_amount, j.max_amount) AS max_amount,
                j.currency, j.job_url, j.rating_count,
-               s.summary
+               s.summary, e.embedding
         FROM jobs j
         LEFT JOIN summaries s ON j.id = s.job_id
         LEFT JOIN clean_jobs c ON j.id = c.job_id
+        LEFT JOIN embeddings e ON j.id = e.job_id
         WHERE j.id=?
         """,
         (job_id,),
@@ -254,6 +284,20 @@ def get_job(job_id: int) -> Optional[Dict]:
             job["summary"] = sanitize_html(render_markdown(job["summary"]))
         if job.get("description"):
             job["description"] = sanitize_html(job["description"])
+        if _model is not None and job.get("embedding"):
+            expected_dim = getattr(_model, "n_features_in_", None)
+            try:
+                vec = json.loads(job.get("embedding") or "null")
+            except Exception:
+                vec = None
+            if vec and (expected_dim is None or len(vec) == expected_dim):
+                try:
+                    prob = float(_model.predict_proba([vec])[0, 1])
+                    job["predicted_confidence"] = prob
+                    job["predicted_match"] = prob >= 0.5
+                except Exception:
+                    pass
+        job.pop("embedding", None)
         return job
     return None
 

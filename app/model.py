@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -91,6 +91,31 @@ def predict_unrated() -> List[Dict]:
         )
     results.sort(key=lambda x: (x["match"], x["confidence"]), reverse=True)
     return results
+
+
+def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
+    """Return match prediction and probability for a single job."""
+    if _model is None:
+        return None
+    conn = sqlite3.connect(DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT embedding FROM embeddings WHERE job_id=?", (job_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    try:
+        vec = json.loads(row[0])
+    except Exception:
+        return None
+    expected_dim = getattr(_model, "n_features_in_", None)
+    if not vec or (expected_dim is not None and len(vec) != expected_dim):
+        return None
+    try:
+        prob = float(_model.predict_proba([vec])[0, 1])
+    except Exception:
+        return None
+    return prob >= 0.5, prob
 
 
 def evaluate_model() -> Dict[str, float | int]:
