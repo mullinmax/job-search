@@ -5,9 +5,12 @@
 <form method="post" action="/regen_jobs" onsubmit="return confirm('Regenerate AI data for selected jobs?');">
   <button class="btn btn-sm btn-secondary mb-2" type="submit">Regenerate Selected</button>
   <table class="table table-striped data-table">
-    <tr><th>Select</th><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th>AI</th><th></th></tr>
-  {% for j in jobs %}
-  <tr>
+    <thead>
+      <tr><th>Select</th><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th>AI</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for j in jobs %}
+    <tr>
     <td><input type="checkbox" name="job_ids" value="{{ j.id }}" /></td>
     <td>{{ loop.index }}</td>
     <td>
@@ -32,9 +35,10 @@
       -
       {% endif %}
     </td>
-  </tr>
-  {% endfor %}
-</table>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </form>
 
 <h2 class="mt-5">Aggregate Stats</h2>
@@ -44,18 +48,26 @@
 
 <h3>Roles per Source</h3>
 <table class="table table-sm data-table">
-  <tr><th>Site</th><th>Count</th></tr>
+  <thead>
+    <tr><th>Site</th><th>Count</th></tr>
+  </thead>
+  <tbody>
   {% for site, count in stats.by_site.items() %}
   <tr><td>{{ site }}</td><td>{{ count }}</td></tr>
   {% endfor %}
+  </tbody>
 </table>
 
 <h3>Posts by Date</h3>
 <table class="table table-sm data-table">
-  <tr><th>Date</th><th>Count</th></tr>
+  <thead>
+    <tr><th>Date</th><th>Count</th></tr>
+  </thead>
+  <tbody>
   {% for date, count in stats.by_date.items() %}
   <tr><td>{{ date }}</td><td>{{ count }}</td></tr>
   {% endfor %}
+  </tbody>
 </table>
 
 <p>Average salary (where provided): {{ format_salary(stats.avg_min_pay, stats.avg_max_pay, 'USD') }}</p>
@@ -78,7 +90,10 @@
 <h2 class="mt-5">Predicted Matches</h2>
 {% if predictions %}
 <table class="table table-sm data-table">
-  <tr><th>Title</th><th>Company</th><th>Confidence</th></tr>
+  <thead>
+    <tr><th>Title</th><th>Company</th><th>Confidence</th></tr>
+  </thead>
+  <tbody>
   {% for p in predictions %}
   <tr>
     <td><a href="/swipe?job_id={{ p.id }}">{{ p.title }}</a></td>
@@ -86,6 +101,7 @@
     <td>{{ '{:.0%}'.format(p.confidence) }}</td>
   </tr>
   {% endfor %}
+  </tbody>
 </table>
 {% else %}
 <p>No predictions available.</p>
