@@ -13,7 +13,7 @@ from threading import Thread, Lock
 
 import io
 import pandas as pd
-from fastapi import FastAPI, Form, Request, BackgroundTasks
+from fastapi import FastAPI, Form, Request, BackgroundTasks, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -43,6 +43,7 @@ from .db import (
     delete_job,
     mark_not_duplicates,
     find_duplicate_jobs,
+    _transfer_feedback,
 )
 from .ai import (
     ensure_model_downloaded,
@@ -529,7 +530,33 @@ def dedup(request: Request):
 def dedup_action(pair_ids: str = Form(...), dup: int = Form(...)):
     id1, id2 = [int(x) for x in pair_ids.split(",")]
     if dup:
-        delete_job(random.choice([id1, id2]))
+        j1 = get_job(id1)
+        j2 = get_job(id2)
+
+        def parse_date(d: str) -> pd.Timestamp:
+            try:
+                return pd.to_datetime(d, utc=True)
+            except Exception:
+                return pd.Timestamp.min
+
+        if j1 and j1.get("site") == "upload":
+            keep, remove = id1, id2
+        elif j2 and j2.get("site") == "upload":
+            keep, remove = id2, id1
+        else:
+            t1 = parse_date(j1.get("date_posted")) if j1 else pd.Timestamp.min
+            t2 = parse_date(j2.get("date_posted")) if j2 else pd.Timestamp.min
+            if t1 >= t2:
+                keep, remove = id1, id2
+            else:
+                keep, remove = id2, id1
+
+        conn = sqlite3.connect(DATABASE)
+        cur = conn.cursor()
+        _transfer_feedback(cur, remove, keep)
+        conn.commit()
+        conn.close()
+        delete_job(remove)
     else:
         mark_not_duplicates(id1, id2)
     return RedirectResponse("/dedup", status_code=303)
@@ -539,3 +566,36 @@ def dedup_action(pair_ids: str = Form(...), dup: int = Form(...)):
 def delete_job_endpoint(request: Request, job_id: int):
     delete_job(job_id)
     return RedirectResponse("/dedup", status_code=303)
+
+
+def import_custom_csv(data: bytes) -> int:
+    """Import user-supplied CSV data and mark all roles as matches."""
+    df = pd.read_csv(io.BytesIO(data))
+    if df.empty:
+        return 0
+    jobs = pd.DataFrame({
+        "site": "upload",
+        "title": df.get("Job Title"),
+        "company": df.get("Company"),
+        "location": df.get("City"),
+        "date_posted": df.get("Posted Date"),
+        "description": "",
+        "interval": "",
+        "min_amount": None,
+        "max_amount": None,
+        "currency": None,
+        "job_url": df.get("Hyperlink"),
+    })
+    ids = save_jobs(jobs)
+    for row, job_id in zip(df.itertuples(), ids):
+        rated = pd.to_datetime(getattr(row, "Farmed Date", None), errors="coerce")
+        ts = int(rated.timestamp()) if not pd.isna(rated) else None
+        record_feedback(job_id, True, None, rated_at=ts)
+    return len(ids)
+
+
+@app.post("/upload_csv", response_class=HTMLResponse)
+async def upload_csv(request: Request, file: UploadFile):
+    data = await file.read()
+    import_custom_csv(data)
+    return RedirectResponse("/manage", status_code=303)
