@@ -40,6 +40,39 @@ def test_init_db_creates_tables(main):
     assert "job_tags" in tables
 
 
+def test_init_db_adds_tags_column(main):
+    # Simulate an older schema without the tags column
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE feedback(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER,
+            liked INTEGER,
+            rated_at INTEGER
+        )
+        """
+    )
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, rated_at) VALUES(1, 1, 0)"
+    )
+    conn.commit()
+    conn.close()
+
+    # Running init_db should add the missing column without touching data
+    main.init_db()
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(feedback)")
+    cols = {r[1] for r in cur.fetchall()}
+    cur.execute("SELECT liked FROM feedback WHERE job_id=1")
+    row = cur.fetchone()
+    conn.close()
+    assert "tags" in cols
+    assert row[0] == 1
+
+
 def test_save_and_get_random_job(main):
     main.init_db()
     df = pd.DataFrame([
