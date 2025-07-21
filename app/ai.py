@@ -205,12 +205,21 @@ def process_all_jobs() -> None:
         have_sum = cur.fetchone()
         cur.execute("SELECT 1 FROM embeddings WHERE job_id=?", (job_id,))
         have_emb = cur.fetchone()
-        cur.execute("SELECT 1 FROM clean_jobs WHERE job_id=?", (job_id,))
-        have_clean = cur.fetchone()
+        cur.execute(
+            "SELECT company, min_amount, max_amount FROM clean_jobs WHERE job_id=?",
+            (job_id,),
+        )
+        clean_row = cur.fetchone()
+        needs_clean = (
+            clean_row is None
+            or clean_row[0] == company
+            or clean_row[1] is None
+            or clean_row[2] is None
+        )
         summary = generate_summary(desc) if not have_sum else None
         embedding = embed_text(desc) if not have_emb else None
         clean_data = None
-        if not have_clean:
+        if needs_clean:
             salary = infer_salary(desc) or (min_amt, max_amt)
             clean_data = (
                 clean_title(title),
@@ -253,13 +262,27 @@ def regenerate_job_ai(job_id: int) -> None:
     title, company, desc, min_amt, max_amt = row
     summary = generate_summary(desc) if desc else ""
     embedding = embed_text(desc) if desc else []
-    salary = infer_salary(desc) or (min_amt, max_amt)
-    clean_data = (
-        clean_title(title),
-        clean_company(company),
-        salary[0],
-        salary[1],
+
+    cur.execute(
+        "SELECT company, min_amount, max_amount FROM clean_jobs WHERE job_id=?",
+        (job_id,),
     )
+    clean_row = cur.fetchone()
+    needs_clean = (
+        clean_row is None
+        or clean_row[0] == company
+        or clean_row[1] is None
+        or clean_row[2] is None
+    )
+    clean_data = None
+    if needs_clean:
+        salary = infer_salary(desc) or (min_amt, max_amt)
+        clean_data = (
+            clean_title(title),
+            clean_company(company),
+            salary[0],
+            salary[1],
+        )
     cur.execute(
         "INSERT OR REPLACE INTO summaries(job_id, summary) VALUES(?, ?)",
         (job_id, summary),
@@ -268,9 +291,10 @@ def regenerate_job_ai(job_id: int) -> None:
         "INSERT OR REPLACE INTO embeddings(job_id, embedding) VALUES(?, ?)",
         (job_id, json.dumps(embedding)),
     )
-    cur.execute(
-        "INSERT OR REPLACE INTO clean_jobs(job_id, title, company, min_amount, max_amount) VALUES(?, ?, ?, ?, ?)",
-        (job_id, *clean_data),
-    )
+    if clean_data is not None:
+        cur.execute(
+            "INSERT OR REPLACE INTO clean_jobs(job_id, title, company, min_amount, max_amount) VALUES(?, ?, ?, ?, ?)",
+            (job_id, *clean_data),
+        )
     conn.commit()
     conn.close()
