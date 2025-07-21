@@ -47,6 +47,13 @@ def init_db() -> None:
         )
         """
     )
+    # Add new columns to existing feedback tables without losing data
+    cur.execute("PRAGMA table_info(feedback)")
+    existing_cols = {r[1] for r in cur.fetchall()}
+    if "tags" not in existing_cols:
+        cur.execute("ALTER TABLE feedback ADD COLUMN tags TEXT")
+    if "rated_at" not in existing_cols:
+        cur.execute("ALTER TABLE feedback ADD COLUMN rated_at INTEGER")
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS embeddings(
