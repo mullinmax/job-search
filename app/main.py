@@ -99,6 +99,16 @@ def format_salary(min_amount: float, max_amount: float, currency: str) -> str:
 templates.env.globals["format_salary"] = format_salary
 
 
+def clean_location(loc: str) -> str:
+    """Strip country information leaving 'City, ST' or just state."""
+    if not loc:
+        return ""
+    parts = [p.strip() for p in str(loc).split(",")]
+    while parts and parts[-1].lower() in {"us", "usa", "united states", "u.s."}:
+        parts.pop()
+    return ", ".join(parts)
+
+
 def time_since_posted(date_str: str) -> str:
     """Return relative age like '2d' or '1w 3d' for the given date string."""
     if not date_str:
@@ -436,7 +446,12 @@ def export_likes():
         df["Date Rated"] = pd.to_datetime(df["rated_at"], unit="s").dt.date
         df["Pay Range"] = df.apply(
             lambda r: format_salary(r["min_amount"], r["max_amount"], r["currency"])
-            if pd.notnull(r["min_amount"]) and pd.notnull(r["max_amount"])
+            if (
+                pd.notnull(r["min_amount"])
+                and pd.notnull(r["max_amount"])
+                and r["min_amount"] > 0
+                and r["max_amount"] > 0
+            )
             else "",
             axis=1,
         )
@@ -449,6 +464,10 @@ def export_likes():
                 "job_url": "Link",
             }
         )
+        df["Location"] = df["Location"].apply(clean_location)
+        dates = pd.to_datetime(df["Date Posted"], errors="coerce")
+        formatted = dates.dt.strftime("%-m/%-d/%Y")
+        df["Date Posted"] = formatted.where(dates.notna(), df["Date Posted"])
         df["Notes"] = ""
         df = df[
             [

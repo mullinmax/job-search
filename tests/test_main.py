@@ -687,3 +687,42 @@ def test_predict_unrated_skips_invalid_embeddings(main):
     assert 3 in ids
     assert 4 not in ids
 
+
+def test_clean_location(main):
+    assert main.clean_location("Cincinnati, OH, US") == "Cincinnati, OH"
+    assert main.clean_location("Ohio, United States") == "Ohio"
+
+
+def test_export_likes_formats_fields(main, monkeypatch):
+    main.init_db()
+    df = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Dev",
+            "company": "ACME",
+            "location": "Cincinnati, OH, US",
+            "date_posted": "2025-07-20",
+            "description": "d",
+            "interval": "year",
+            "min_amount": 0,
+            "max_amount": 0,
+            "currency": "USD",
+            "job_url": "http://e.com/1",
+        }
+    ])
+    main.save_jobs(df)
+    main.record_feedback(1, True, "")
+
+    captured = {}
+
+    def fake_to_excel(self, buf, index=False, engine=None):
+        captured["df"] = self.copy()
+
+    monkeypatch.setattr(pd.DataFrame, "to_excel", fake_to_excel)
+    main.export_likes()
+
+    out = captured["df"]
+    assert out.loc[0, "Location"] == "Cincinnati, OH"
+    assert out.loc[0, "Pay Range"] == ""
+    assert out.loc[0, "Date Posted"] == "7/20/2025"
+
