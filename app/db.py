@@ -86,9 +86,10 @@ def init_db() -> None:
     conn.close()
 
 
-def save_jobs(df: pd.DataFrame) -> None:
+def save_jobs(df: pd.DataFrame) -> List[int]:
+    """Insert jobs and return their resulting IDs after deduplication."""
     if df.empty:
-        return
+        return []
     cols = {
         "site": None,
         "title": None,
@@ -105,6 +106,7 @@ def save_jobs(df: pd.DataFrame) -> None:
     df = df.loc[:, df.columns.intersection(cols.keys())]
     conn = sqlite3.connect(app_main.DATABASE)
     cur = conn.cursor()
+    inserted_urls = []
     for _, row in df.iterrows():
         values = tuple(row.get(c) for c in cols)
         cur.execute(
@@ -114,48 +116,58 @@ def save_jobs(df: pd.DataFrame) -> None:
             """,
             values,
         )
+        inserted_urls.append(row.get("job_url"))
 
-    # Remove older duplicates keeping the most recently posted entry
+    # Merge duplicates by job_url and description
     cur.execute(
-        """
-        DELETE FROM jobs
-        WHERE id IN (
-            SELECT id FROM (
-                SELECT id, ROW_NUMBER() OVER (
-                    PARTITION BY job_url
-                    ORDER BY
-                        CASE WHEN date_posted IS NULL THEN 1 ELSE 0 END,
-                        date_posted DESC,
-                        id DESC
-                ) AS rn
-                FROM jobs WHERE job_url IS NOT NULL
-            ) WHERE rn > 1
-        )
-        """
+        "SELECT job_url FROM jobs WHERE job_url IS NOT NULL GROUP BY job_url HAVING COUNT(*)>1"
     )
+    urls = [r[0] for r in cur.fetchall()]
+    for url in urls:
+        cur.execute(
+            "SELECT id, date_posted FROM jobs WHERE job_url=? ORDER BY CASE WHEN date_posted IS NULL THEN 1 ELSE 0 END, date_posted DESC, id DESC",
+            (url,),
+        )
+        rows = cur.fetchall()
+        keep = rows[0][0]
+        for rid, _ in rows[1:]:
+            _transfer_feedback(cur, rid, keep)
+            cur.execute("DELETE FROM summaries WHERE job_id=?", (rid,))
+            cur.execute("DELETE FROM embeddings WHERE job_id=?", (rid,))
+            cur.execute("DELETE FROM jobs WHERE id=?", (rid,))
+
     cur.execute(
-        """
-        DELETE FROM jobs
-        WHERE id IN (
-            SELECT id FROM (
-                SELECT id, ROW_NUMBER() OVER (
-                    PARTITION BY description
-                    ORDER BY
-                        CASE WHEN date_posted IS NULL THEN 1 ELSE 0 END,
-                        date_posted DESC,
-                        id DESC
-                ) AS rn
-                FROM jobs
-                WHERE description IS NOT NULL AND description != ''
-            ) WHERE rn > 1
-        )
-        """
+        "SELECT description FROM jobs WHERE description IS NOT NULL AND description != '' GROUP BY description HAVING COUNT(*)>1"
     )
+    descs = [r[0] for r in cur.fetchall()]
+    for desc in descs:
+        cur.execute(
+            "SELECT id, date_posted FROM jobs WHERE description=? ORDER BY CASE WHEN date_posted IS NULL THEN 1 ELSE 0 END, date_posted DESC, id DESC",
+            (desc,),
+        )
+        rows = cur.fetchall()
+        keep = rows[0][0]
+        for rid, _ in rows[1:]:
+            _transfer_feedback(cur, rid, keep)
+            cur.execute("DELETE FROM summaries WHERE job_id=?", (rid,))
+            cur.execute("DELETE FROM embeddings WHERE job_id=?", (rid,))
+            cur.execute("DELETE FROM jobs WHERE id=?", (rid,))
+
+    # Identify resulting IDs for inserted URLs
+    ids: List[int] = []
+    for url in inserted_urls:
+        cur.execute(
+            "SELECT id FROM jobs WHERE job_url=? ORDER BY CASE WHEN date_posted IS NULL THEN 1 ELSE 0 END, date_posted DESC, id DESC LIMIT 1",
+            (url,),
+        )
+        row = cur.fetchone()
+        ids.append(row[0] if row else None)
 
     conn.commit()
     conn.close()
     if OLLAMA_ENABLED:
         process_all_jobs()
+    return ids
 
 
 def get_random_job() -> Optional[Dict]:
@@ -310,13 +322,21 @@ def increment_rating_count(job_id: int) -> None:
     conn.close()
 
 
-def record_feedback(job_id: int, liked: bool, reason: Optional[str]) -> None:
+def record_feedback(
+    job_id: int,
+    liked: bool,
+    reason: Optional[str],
+    rated_at: Optional[int] = None,
+) -> None:
+    """Insert a feedback entry and retrain the model if needed."""
     increment_rating_count(job_id)
     conn = sqlite3.connect(app_main.DATABASE)
     cur = conn.cursor()
+    if rated_at is None:
+        rated_at = int(time.time())
     cur.execute(
         "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,?)",
-        (job_id, int(liked), reason, int(time.time())),
+        (job_id, int(liked), reason, rated_at),
     )
     conn.commit()
     conn.close()
@@ -392,6 +412,30 @@ def delete_job(job_id: int) -> None:
     cur.execute("DELETE FROM feedback WHERE job_id=?", (job_id,))
     conn.commit()
     conn.close()
+
+
+def _transfer_feedback(cur: sqlite3.Cursor, src: int, dest: int) -> None:
+    """Move feedback rows from src to dest if dest has none."""
+    cur.execute("SELECT COUNT(*) FROM feedback WHERE job_id=?", (dest,))
+    if cur.fetchone()[0] == 0:
+        cur.execute(
+            "SELECT liked, reason, rated_at FROM feedback WHERE job_id=?",
+            (src,),
+        )
+        rows = cur.fetchall()
+        if rows:
+            cur.executemany(
+                "INSERT INTO feedback(job_id, liked, reason, rated_at) VALUES(?,?,?,?)",
+                [(dest, r[0], r[1], r[2]) for r in rows],
+            )
+            cur.execute("SELECT rating_count FROM jobs WHERE id=?", (dest,))
+            cnt = cur.fetchone()[0] or 0
+            cnt += len(rows)
+            cur.execute(
+                "UPDATE jobs SET rating_count=? WHERE id=?",
+                (cnt, dest),
+            )
+        cur.execute("DELETE FROM feedback WHERE job_id=?", (src,))
 
 
 def mark_not_duplicates(id1: int, id2: int) -> None:

@@ -726,3 +726,85 @@ def test_export_likes_formats_fields(main, monkeypatch):
     assert out.loc[0, "Pay Range"] == ""
     assert out.loc[0, "Date Posted"] == "7/20/2025"
 
+
+def test_import_custom_csv_marks_match(main):
+    main.init_db()
+    csv_data = (
+        "Company,Job Title,City,Posted Date,Farmed Date,Pay Range,Notes (Mostly missing skills),Hyperlink\n"
+        "ACME,Engineer,,6/6/2025,6/10/2025,, ,http://e.com/1\n"
+    )
+    count = main.import_custom_csv(csv_data.encode())
+    assert count == 1
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT id, site FROM jobs")
+    jid, site = cur.fetchone()
+    cur.execute("SELECT liked FROM feedback WHERE job_id=?", (jid,))
+    fb = cur.fetchone()
+    conn.close()
+    assert site == "upload"
+    assert fb[0] == 1
+
+
+def test_save_jobs_preserves_feedback_on_dup(main):
+    main.init_db()
+    df1 = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Dev",
+            "company": "ACME",
+            "location": "L",
+            "date_posted": "2024-06-01",
+            "description": "old",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://dup.com/1",
+        }
+    ])
+    ids = main.save_jobs(df1)
+    main.record_feedback(ids[0], True, "", rated_at=1000)
+    df2 = pd.DataFrame([
+        {
+            "site": "t",
+            "title": "Dev",
+            "company": "ACME",
+            "location": "L",
+            "date_posted": "2024-06-05",
+            "description": "new",
+            "interval": "year",
+            "min_amount": 1,
+            "max_amount": 2,
+            "currency": "USD",
+            "job_url": "http://dup.com/1",
+        }
+    ])
+    main.save_jobs(df2)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT description,id FROM jobs")
+    desc, jid = cur.fetchone()
+    cur.execute("SELECT liked, rated_at FROM feedback WHERE job_id=?", (jid,))
+    fb = cur.fetchone()
+    conn.close()
+    assert desc == "new"
+    assert fb[0] == 1 and fb[1] == 1000
+
+
+def test_dedup_action_keeps_uploaded(main):
+    main.init_db()
+    id1 = main.save_jobs(pd.DataFrame([
+        {"site": "upload", "title": "Dev", "company": "A", "job_url": "u1", "description": "x1", "date_posted": "1"}
+    ]))[0]
+    id2 = main.save_jobs(pd.DataFrame([
+        {"site": "t", "title": "Dev", "company": "A", "job_url": "u2", "description": "x2", "date_posted": "0"}
+    ]))[0]
+    main.dedup_action(f"{id1},{id2}", 1)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT site FROM jobs")
+    site = cur.fetchone()[0]
+    conn.close()
+    assert site == "upload"
+
