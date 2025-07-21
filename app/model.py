@@ -52,7 +52,7 @@ def train_model() -> None:
 
 
 def predict_unrated() -> List[Dict]:
-    """Return predictions for unrated jobs sorted by confidence."""
+    """Return predictions for unrated jobs sorted by match then confidence."""
     if _model is None:
         return []
     conn = sqlite3.connect(DATABASE)
@@ -79,8 +79,17 @@ def predict_unrated() -> List[Dict]:
             prob = float(_model.predict_proba([vec])[0, 1])
         except Exception:
             continue
-        results.append({"id": job_id, "title": title, "company": company, "confidence": prob})
-    results.sort(key=lambda x: x["confidence"], reverse=True)
+        match = prob >= 0.5
+        results.append(
+            {
+                "id": job_id,
+                "title": title,
+                "company": company,
+                "confidence": prob,
+                "match": match,
+            }
+        )
+    results.sort(key=lambda x: (x["match"], x["confidence"]), reverse=True)
     return results
 
 

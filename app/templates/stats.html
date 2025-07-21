@@ -91,13 +91,20 @@
 {% if predictions %}
 <table class="table table-sm data-table">
   <thead>
-    <tr><th>Title</th><th>Company</th><th>Confidence</th></tr>
+    <tr><th>Title</th><th>Company</th><th>Match</th><th>Confidence</th></tr>
   </thead>
   <tbody>
   {% for p in predictions %}
   <tr>
     <td><a href="/swipe?job_id={{ p.id }}">{{ p.title }}</a></td>
     <td>{{ p.company }}</td>
+    <td>
+      {% if p.match %}
+        <span class="text-success">✔</span>
+      {% else %}
+        <span class="text-danger">✖</span>
+      {% endif %}
+    </td>
     <td>{{ '{:.0%}'.format(p.confidence) }}</td>
   </tr>
   {% endfor %}
