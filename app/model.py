@@ -10,6 +10,7 @@ from .config import DATABASE
 
 _model: LogisticRegression | None = None
 _tag_binarizer: MultiLabelBinarizer | None = None
+_eval_set: Tuple[np.ndarray, np.ndarray] | None = None
 
 
 def train_model() -> None:
@@ -31,6 +32,7 @@ def train_model() -> None:
     if not rows:
         _model = None
         _tag_binarizer = None
+        _eval_set = None
         return
     X_emb: List[List[float]] = []
     tag_sets: List[List[str]] = []
@@ -59,6 +61,7 @@ def train_model() -> None:
     if not X_emb:
         _model = None
         _tag_binarizer = None
+        _eval_set = None
         return
     _tag_binarizer = MultiLabelBinarizer()
     tag_matrix = _tag_binarizer.fit_transform(tag_sets)
@@ -67,9 +70,24 @@ def train_model() -> None:
     if len(set(y)) < 2:
         _model = None
         _tag_binarizer = None
+        _eval_set = None
         return
+    rng = np.random.default_rng(0)
+    idx = np.arange(len(y))
+    rng.shuffle(idx)
+    test_size = max(1, int(len(y) * 0.1)) if len(y) > 1 else 0
+    test_idx = idx[:test_size]
+    train_idx = idx[test_size:]
+    if len(train_idx) < 2 or len(set(y[train_idx])) < 2:
+        train_idx = idx
+        test_idx = []
+    X_train = X[train_idx]
+    y_train = y[train_idx]
+    X_test = X[test_idx]
+    y_test = y[test_idx]
     _model = LogisticRegression(max_iter=1000)
-    _model.fit(X, y)
+    _model.fit(X_train, y_train)
+    _eval_set = (X_test, y_test)
 
 
 def predict_unrated() -> List[Dict]:
@@ -166,8 +184,8 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
 
 
 def evaluate_model() -> Dict[str, float | int]:
-    """Return basic accuracy stats comparing predictions to feedback."""
-    if _model is None:
+    """Return accuracy metrics using the holdout set from training."""
+    if _model is None or _eval_set is None:
         return {
             "total": 0,
             "tp": 0,
@@ -179,20 +197,8 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    conn = connect_db()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT f.liked, e.embedding, f.tags, GROUP_CONCAT(t.tag)
-        FROM feedback f
-        JOIN embeddings e ON f.job_id = e.job_id
-        LEFT JOIN job_tags t ON f.job_id = t.job_id
-        GROUP BY f.id
-        """
-    )
-    rows = cur.fetchall()
-    conn.close()
-    if not rows:
+    X_test, y_test = _eval_set
+    if len(y_test) == 0:
         return {
             "total": 0,
             "tp": 0,
@@ -204,64 +210,12 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    expected_dim = getattr(_model, "n_features_in_", None)
-    X_emb: List[List[float]] = []
-    tag_sets: List[List[str]] = []
-    y_list: List[int] = []
-    for liked, emb, fb_tags, job_tags in rows:
-        vec = json.loads(emb)
-        if not vec:
-            continue
-        if X_emb and len(vec) != len(X_emb[0]):
-            continue
-        tags = []
-        if fb_tags:
-            tags.extend(t.strip() for t in str(fb_tags).split(',') if t.strip())
-        if job_tags:
-            tags.extend(t.strip() for t in str(job_tags).split(',') if t.strip())
-        seen = set()
-        uniq = []
-        for t in tags:
-            tl = t.lower()
-            if tl not in seen:
-                seen.add(tl)
-                uniq.append(t)
-        X_emb.append(vec)
-        tag_sets.append(uniq)
-        y_list.append(liked)
-    if not X_emb:
-        return {
-            "total": 0,
-            "tp": 0,
-            "tn": 0,
-            "fp": 0,
-            "fn": 0,
-            "accuracy": 0.0,
-            "precision": 0.0,
-            "recall": 0.0,
-        }
-
-    if _tag_binarizer is None:
-        return {
-            "total": 0,
-            "tp": 0,
-            "tn": 0,
-            "fp": 0,
-            "fn": 0,
-            "accuracy": 0.0,
-            "precision": 0.0,
-            "recall": 0.0,
-        }
-    tag_matrix = _tag_binarizer.transform(tag_sets) if tag_sets else np.zeros((len(tag_sets), 0))
-    X = np.hstack([np.array(X_emb), tag_matrix])
-    y = np.array(y_list)
-    preds = _model.predict(X)
-
-    tp = int(np.sum((preds == 1) & (y == 1)))
-    tn = int(np.sum((preds == 0) & (y == 0)))
-    fp = int(np.sum((preds == 1) & (y == 0)))
-    fn = int(np.sum((preds == 0) & (y == 1)))
-    total = len(y)
+    preds = _model.predict(X_test)
+    tp = int(np.sum((preds == 1) & (y_test == 1)))
+    tn = int(np.sum((preds == 0) & (y_test == 0)))
+    fp = int(np.sum((preds == 1) & (y_test == 0)))
+    fn = int(np.sum((preds == 0) & (y_test == 1)))
+    total = len(y_test)
 
     accuracy = (tp + tn) / total if total else 0.0
     precision = tp / (tp + fp) if (tp + fp) else 0.0
