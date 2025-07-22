@@ -12,10 +12,12 @@ from . import main as app_main
 from .ai import OLLAMA_ENABLED, process_all_jobs, render_markdown
 from .utils import sanitize_html
 from .model import train_model, _model
+from .database import connect_db
 
 
 def init_db() -> None:
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
+    conn.execute("PRAGMA journal_mode=WAL")
     cur = conn.cursor()
     cur.execute(
         """
@@ -121,7 +123,7 @@ def save_jobs(df: pd.DataFrame) -> List[int]:
         "job_url": None,
     }
     df = df.loc[:, df.columns.intersection(cols.keys())]
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     inserted_urls = []
     for _, row in df.iterrows():
@@ -211,7 +213,7 @@ def save_jobs(df: pd.DataFrame) -> List[int]:
 
 
 def get_random_job() -> Optional[Dict]:
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         """
@@ -280,7 +282,7 @@ def get_random_job() -> Optional[Dict]:
 
 
 def get_job(job_id: int) -> Optional[Dict]:
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         """
@@ -337,7 +339,7 @@ def get_job(job_id: int) -> Optional[Dict]:
 
 
 def list_jobs_by_feedback() -> List[Dict]:
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         """
@@ -368,7 +370,7 @@ def list_jobs_by_feedback() -> List[Dict]:
 
 
 def aggregate_job_stats() -> Dict:
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
 
     cur.execute("SELECT COUNT(*) FROM jobs")
@@ -410,7 +412,7 @@ def aggregate_job_stats() -> Dict:
 
 
 def increment_rating_count(job_id: int) -> None:
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute("SELECT rating_count FROM jobs WHERE id=?", (job_id,))
     row = cur.fetchone()
@@ -431,7 +433,7 @@ def record_feedback(
 ) -> None:
     """Insert a feedback entry and retrain the model if needed."""
     increment_rating_count(job_id)
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     if rated_at is None:
         rated_at = int(time.time())
@@ -444,7 +446,7 @@ def record_feedback(
 
     retrain = False
     if _model is not None:
-        conn = sqlite3.connect(app_main.DATABASE)
+        conn = connect_db()
         cur = conn.cursor()
         cur.execute("SELECT embedding FROM embeddings WHERE job_id=?", (job_id,))
         row = cur.fetchone()
@@ -461,7 +463,7 @@ def record_feedback(
 
 
 def cleanup_jobs() -> int:
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
 
     cur.execute("DELETE FROM jobs WHERE description IS NULL OR description = ''")
@@ -483,7 +485,7 @@ def cleanup_jobs() -> int:
 
 def list_liked_jobs() -> pd.DataFrame:
     """Return a DataFrame of positively rated jobs with rating timestamps."""
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     query = """
         SELECT j.site,
                COALESCE(c.company, j.company) AS company,
@@ -506,7 +508,7 @@ def list_liked_jobs() -> pd.DataFrame:
 
 def delete_job(job_id: int) -> None:
     """Remove a job and associated AI data."""
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute("DELETE FROM jobs WHERE id=?", (job_id,))
     cur.execute("DELETE FROM summaries WHERE job_id=?", (job_id,))
@@ -553,7 +555,7 @@ def mark_not_duplicates(id1: int, id2: int) -> None:
     """Record that two jobs are not duplicates."""
     if id1 > id2:
         id1, id2 = id2, id1
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         "INSERT OR IGNORE INTO not_duplicates(job_id1, job_id2) VALUES(?, ?)",
@@ -565,7 +567,7 @@ def mark_not_duplicates(id1: int, id2: int) -> None:
 
 def find_duplicate_jobs(threshold: float = 0.85) -> List[Tuple[Dict, Dict, float]]:
     """Return pairs of potentially duplicate jobs based on text similarity."""
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     df = pd.read_sql_query(
         "SELECT id, site, title, company, location, description FROM jobs", conn
     )
