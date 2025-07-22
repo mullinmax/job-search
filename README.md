@@ -59,9 +59,10 @@ The application uses [JobSpy](https://pypi.org/project/python-jobspy/) to scrape
 job boards and FastAPI for the web interface. If LinkedIn descriptions are
 missing, the scraper now passes `linkedin_fetch_description=True` which visits
 each LinkedIn job page to pull the full text. When Ollama is enabled the
-AI-generated summary now separates **Required Skills** from **Bonus Skills** so
-it's clear which technologies are mandatory. Embeddings include the title and
-company name along with the full description for better ranking accuracy.
+AI-generated summary strips company mission statements or disclaimers and
+separates **Required Skills** from **Bonus Skills** so it's clear which
+technologies are mandatory. Embeddings include the title and company name along
+with the full description for better ranking accuracy.
 
 ## Documentation
 

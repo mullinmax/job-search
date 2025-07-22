@@ -68,9 +68,12 @@ logging.basicConfig(level=logging.INFO)
 progress_logs = deque(maxlen=100)
 
 REWRITE_PROMPT_TEMPLATE = '''
-Rewrite the following job description into concise Markdown without preamble.
-Start with two bullet lists: first list the required technologies and then list any bonus or nice-to-have skills. Group alternatives with '/'.
-Skip duplicate items and omit sections that cannot be filled.
+Rewrite the following job description with an eye toward removing fluff. Strip
+company mission statements, marketing language, generic disclaimers and physical
+demands. Boil lengthy sentences down to short phrases so only the true
+requirements and responsibilities remain.
+
+Return concise Markdown organized into bullet lists. Group alternatives with '/' and skip duplicates or empty sections:
 
 ---
 **Required Skills**
@@ -82,6 +85,10 @@ Skip duplicate items and omit sections that cannot be filled.
 - item two
 
 **Soft Skills**
+- item one
+- item two
+
+**Responsibilities**
 - item one
 - item two
 ---
