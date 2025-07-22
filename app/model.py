@@ -1,5 +1,5 @@
 import json
-import sqlite3
+from .database import connect_db
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -15,7 +15,7 @@ _tag_binarizer: MultiLabelBinarizer | None = None
 def train_model() -> None:
     """Train a logistic regression model from feedback, embeddings and tags."""
     global _model, _tag_binarizer
-    conn = sqlite3.connect(DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         """
@@ -76,7 +76,7 @@ def predict_unrated() -> List[Dict]:
     """Return predictions for unrated jobs sorted by match then confidence."""
     if _model is None:
         return []
-    conn = sqlite3.connect(DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         """
@@ -127,7 +127,7 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
     """Return match prediction and probability for a single job."""
     if _model is None:
         return None
-    conn = sqlite3.connect(DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         """
@@ -179,7 +179,7 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    conn = sqlite3.connect(DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         """

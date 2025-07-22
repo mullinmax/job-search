@@ -224,13 +224,13 @@ def render_markdown(text: str) -> str:
     return sanitize_html(html)
 
 
-import sqlite3
+from .database import connect_db
 
 
 def process_all_jobs() -> None:
     if not OLLAMA_ENABLED:
         return
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute("SELECT id, title, company, description, min_amount, max_amount FROM jobs")
     rows = cur.fetchall()
@@ -285,7 +285,7 @@ def process_all_jobs() -> None:
 def regenerate_job_ai(job_id: int) -> None:
     if not OLLAMA_ENABLED:
         return
-    conn = sqlite3.connect(app_main.DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute(
         "SELECT title, company, description, min_amount, max_amount FROM jobs WHERE id=?",

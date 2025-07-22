@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import time
 from typing import List, Dict, Optional, Tuple
 
@@ -45,6 +44,7 @@ from .db import (
     find_duplicate_jobs,
     _transfer_feedback,
 )
+from .database import connect_db
 from .ai import (
     ensure_model_downloaded,
     embed_text,
@@ -371,7 +371,7 @@ def clear_ai_data_task() -> None:
     if not OLLAMA_ENABLED:
         return
     log_progress("Clearing summaries and embeddings")
-    conn = sqlite3.connect(DATABASE)
+    conn = connect_db()
     cur = conn.cursor()
     cur.execute("DELETE FROM summaries")
     cur.execute("DELETE FROM embeddings")
@@ -559,7 +559,7 @@ def dedup_action(pair_ids: str = Form(...), dup: int = Form(...)):
             else:
                 keep, remove = id2, id1
 
-        conn = sqlite3.connect(DATABASE)
+        conn = connect_db()
         cur = conn.cursor()
         _transfer_feedback(cur, remove, keep)
         conn.commit()
