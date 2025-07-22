@@ -847,6 +847,24 @@ def test_dedup_action_keeps_uploaded(main):
     assert site == "upload"
 
 
+def test_dedup_action_handles_missing_dates(main):
+    main.init_db()
+    id1 = main.save_jobs(pd.DataFrame([
+        {"site": "t", "title": "Dev1", "company": "A", "job_url": "d1", "description": "x1", "date_posted": None}
+    ]))[0]
+    id2 = main.save_jobs(pd.DataFrame([
+        {"site": "t", "title": "Dev2", "company": "A", "job_url": "d2", "description": "x2", "date_posted": None}
+    ]))[0]
+    # Should not raise even when dates are missing
+    main.dedup_action(f"{id1},{id2}", 1)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM jobs")
+    count = cur.fetchone()[0]
+    conn.close()
+    assert count == 1
+
+
 def test_model_uses_tags(main):
     main.init_db()
     import importlib
