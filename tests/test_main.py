@@ -585,9 +585,9 @@ def test_evaluate_model(main):
     conn.close()
     main.train_model()
     stats = main.evaluate_model()
-    assert stats["total"] == 0
-    assert stats["tp"] + stats["tn"] + stats["fp"] + stats["fn"] == 0
-    assert stats["accuracy"] == 0.0
+    assert stats["total"] == 2
+    assert stats["tp"] + stats["tn"] + stats["fp"] + stats["fn"] == 2
+    assert stats["accuracy"] == 1.0
 
 
 def test_list_liked_jobs(main):
