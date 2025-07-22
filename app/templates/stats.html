@@ -79,10 +79,6 @@
   <form class="d-inline" method="post" action="/train">
     <button class="btn btn-primary btn-sm" type="submit">Retrain Model</button>
   </form>
-  <button class="btn btn-secondary btn-sm ms-2" type="button"
-          onclick="alert('Rated {{ stats.rated_roles }} of {{ min_feedback }} roles');">
-    Show Data Needed
-  </button>
 </div>
 {% if model_stats.total > 0 %}
 <ul>
