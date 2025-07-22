@@ -60,7 +60,8 @@ job boards and FastAPI for the web interface. If LinkedIn descriptions are
 missing, the scraper now passes `linkedin_fetch_description=True` which visits
 each LinkedIn job page to pull the full text. When Ollama is enabled the
 AI-generated summary now separates **Required Skills** from **Bonus Skills** so
-it's clear which technologies are mandatory.
+it's clear which technologies are mandatory. Embeddings include the title and
+company name along with the full description for better ranking accuracy.
 
 ## Documentation
 
