@@ -1,6 +1,6 @@
 import json
 from .database import connect_db
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
@@ -11,11 +11,12 @@ from .config import DATABASE
 _model: LogisticRegression | None = None
 _tag_binarizer: MultiLabelBinarizer | None = None
 _eval_set: Tuple[np.ndarray, np.ndarray] | None = None
+_known_tags: Set[str] = set()
 
 
 def train_model() -> None:
     """Train a logistic regression model from feedback, embeddings and tags."""
-    global _model, _tag_binarizer
+    global _model, _tag_binarizer, _known_tags
     conn = connect_db()
     cur = conn.cursor()
     cur.execute(
@@ -33,6 +34,7 @@ def train_model() -> None:
         _model = None
         _tag_binarizer = None
         _eval_set = None
+        _known_tags = set()
         return
     X_emb: List[List[float]] = []
     tag_sets: List[List[str]] = []
@@ -62,15 +64,18 @@ def train_model() -> None:
         _model = None
         _tag_binarizer = None
         _eval_set = None
+        _known_tags = set()
         return
     _tag_binarizer = MultiLabelBinarizer()
     tag_matrix = _tag_binarizer.fit_transform(tag_sets)
+    _known_tags = set(_tag_binarizer.classes_)
     X = np.hstack([np.array(X_emb), tag_matrix])
     y = np.array(y_list)
     if len(set(y)) < 2:
         _model = None
         _tag_binarizer = None
         _eval_set = None
+        _known_tags = set()
         return
     rng = np.random.default_rng(0)
     idx = np.arange(len(y))
@@ -117,7 +122,8 @@ def predict_unrated() -> List[Dict]:
             continue
         tag_list = [t.strip() for t in str(tags).split(',') if t.strip()] if tags else []
         if _tag_binarizer is not None:
-            tag_vec = _tag_binarizer.transform([tag_list])[0]
+            filtered = [t for t in tag_list if t in _known_tags]
+            tag_vec = _tag_binarizer.transform([filtered])[0]
             feat = np.hstack([vec, tag_vec])
         else:
             feat = vec
@@ -168,7 +174,8 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
     tags = row[1] if row and len(row) > 1 else None
     tag_list = [t.strip() for t in str(tags).split(',') if t.strip()] if tags else []
     if _tag_binarizer is not None:
-        tag_vec = _tag_binarizer.transform([tag_list])[0]
+        filtered = [t for t in tag_list if t in _known_tags]
+        tag_vec = _tag_binarizer.transform([filtered])[0]
         feat = np.hstack([vec, tag_vec])
     else:
         feat = vec
