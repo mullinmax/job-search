@@ -50,7 +50,8 @@ SALARY_PROMPT = (
 
 TAG_PROMPT = (
     "List concise, canonical tags for important skills or requirements in this job description. "
-    "Use common abbreviations like 'AWS' instead of 'Amazon Web Services'. "
+    "Each bullet point from the generated summary should become a tag. "
+    "Use common abbreviations where appropriate to keep tags short. "
     "Return the tags as a comma separated list only.\n{text}"
 )
 
