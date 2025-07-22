@@ -11,12 +11,13 @@ from .config import DATABASE
 _model: LogisticRegression | None = None
 _tag_binarizer: MultiLabelBinarizer | None = None
 _eval_set: Tuple[np.ndarray, np.ndarray] | None = None
+_train_set: Tuple[np.ndarray, np.ndarray] | None = None
 _known_tags: Set[str] = set()
 
 
 def train_model() -> None:
     """Train a logistic regression model from feedback, embeddings and tags."""
-    global _model, _tag_binarizer, _known_tags
+    global _model, _tag_binarizer, _eval_set, _train_set, _known_tags
     conn = connect_db()
     cur = conn.cursor()
     cur.execute(
@@ -34,6 +35,7 @@ def train_model() -> None:
         _model = None
         _tag_binarizer = None
         _eval_set = None
+        _train_set = None
         _known_tags = set()
         return
     X_emb: List[List[float]] = []
@@ -64,6 +66,7 @@ def train_model() -> None:
         _model = None
         _tag_binarizer = None
         _eval_set = None
+        _train_set = None
         _known_tags = set()
         return
     _tag_binarizer = MultiLabelBinarizer()
@@ -71,10 +74,12 @@ def train_model() -> None:
     _known_tags = set(_tag_binarizer.classes_)
     X = np.hstack([np.array(X_emb), tag_matrix])
     y = np.array(y_list)
+    _train_set = (X, y)
     if len(set(y)) < 2:
         _model = None
         _tag_binarizer = None
         _eval_set = None
+        _train_set = None
         _known_tags = set()
         return
     rng = np.random.default_rng(0)
@@ -191,8 +196,8 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
 
 
 def evaluate_model() -> Dict[str, float | int]:
-    """Return accuracy metrics using the holdout set from training."""
-    if _model is None or _eval_set is None:
+    """Return accuracy metrics using available data."""
+    if _model is None:
         return {
             "total": 0,
             "tp": 0,
@@ -204,8 +209,11 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    X_test, y_test = _eval_set
-    if len(y_test) == 0:
+    if _eval_set is not None and len(_eval_set[1]) > 0:
+        X_eval, y_eval = _eval_set
+    elif _train_set is not None:
+        X_eval, y_eval = _train_set
+    else:
         return {
             "total": 0,
             "tp": 0,
@@ -217,12 +225,12 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    preds = _model.predict(X_test)
-    tp = int(np.sum((preds == 1) & (y_test == 1)))
-    tn = int(np.sum((preds == 0) & (y_test == 0)))
-    fp = int(np.sum((preds == 1) & (y_test == 0)))
-    fn = int(np.sum((preds == 0) & (y_test == 1)))
-    total = len(y_test)
+    preds = _model.predict(X_eval)
+    tp = int(np.sum((preds == 1) & (y_eval == 1)))
+    tn = int(np.sum((preds == 0) & (y_eval == 0)))
+    fp = int(np.sum((preds == 1) & (y_eval == 0)))
+    fn = int(np.sum((preds == 0) & (y_eval == 1)))
+    total = len(y_eval)
 
     accuracy = (tp + tn) / total if total else 0.0
     precision = tp / (tp + fp) if (tp + fp) else 0.0
