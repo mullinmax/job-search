@@ -27,7 +27,6 @@ from .config import (
     DATABASE,
     OLLAMA_ENABLED,
     BUILD_NUMBER,
-    MIN_FEEDBACK_FOR_TRAINING,
 )
 from .db import (
     init_db,
@@ -347,7 +346,6 @@ def stats(request: Request):
             "stats": agg,
             "predictions": predictions,
             "model_stats": model_stats,
-            "min_feedback": MIN_FEEDBACK_FOR_TRAINING,
             "container_class": "container-fluid",
         },
     )
