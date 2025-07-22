@@ -245,7 +245,8 @@ def process_all_jobs() -> None:
         cur.execute("SELECT 1 FROM job_tags WHERE job_id=?", (job_id,))
         have_tags = cur.fetchone()
         summary = generate_summary(desc) if not have_sum else None
-        embedding = embed_text(desc) if not have_emb else None
+        text_for_embedding = f"{title}\n{company}\n{desc}"
+        embedding = embed_text(text_for_embedding) if not have_emb else None
         clean_data = None
         tags = generate_tags(desc) if not have_tags else None
         if not have_clean:
@@ -295,7 +296,8 @@ def regenerate_job_ai(job_id: int) -> None:
         return
     title, company, desc, min_amt, max_amt = row
     summary = generate_summary(desc) if desc else ""
-    embedding = embed_text(desc) if desc else []
+    text_for_embedding = f"{title}\n{company}\n{desc}" if desc else ""
+    embedding = embed_text(text_for_embedding) if desc else []
     tags = generate_tags(desc) if desc else []
     salary = infer_salary(desc) or (min_amt, max_amt)
     clean_data = (

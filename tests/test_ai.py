@@ -53,3 +53,62 @@ def test_clean_company_accepts_clean(ai_module, monkeypatch):
         lambda *a, **k: make_response("JPMorgan Chase"),
     )
     assert ai.clean_company("JPMorgan Chase & Co.") == "JPMorgan Chase"
+
+
+def test_embedding_includes_title_company(ai_module, tmp_path, monkeypatch):
+    ai = ai_module
+    stub_main = sys.modules["app.main"]
+    db_path = tmp_path / "db.db"
+    stub_main.DATABASE = str(db_path)
+
+    import sqlite3
+
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE jobs(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            company TEXT,
+            description TEXT,
+            min_amount REAL,
+            max_amount REAL
+        )
+        """
+    )
+    cur.execute("CREATE TABLE summaries(job_id INTEGER PRIMARY KEY, summary TEXT)")
+    cur.execute(
+        "CREATE TABLE embeddings(job_id INTEGER PRIMARY KEY, embedding TEXT)"
+    )
+    cur.execute(
+        "CREATE TABLE clean_jobs(job_id INTEGER PRIMARY KEY, title TEXT, company TEXT, min_amount REAL, max_amount REAL)"
+    )
+    cur.execute(
+        "CREATE TABLE job_tags(job_id INTEGER, tag TEXT, PRIMARY KEY(job_id, tag))"
+    )
+    cur.execute(
+        "INSERT INTO jobs(id,title,company,description,min_amount,max_amount) VALUES(1,'Data Scientist','ACME','Analyze data',1,2)"
+    )
+    conn.commit()
+    conn.close()
+
+    captured = {}
+
+    def fake_embed(text: str):
+        captured["text"] = text
+        return []
+
+    monkeypatch.setattr(ai, "OLLAMA_ENABLED", True)
+    monkeypatch.setattr(ai, "embed_text", fake_embed)
+    monkeypatch.setattr(ai, "generate_summary", lambda x: "")
+    monkeypatch.setattr(ai, "generate_tags", lambda x: [])
+    monkeypatch.setattr(ai, "clean_title", lambda x: x)
+    monkeypatch.setattr(ai, "clean_company", lambda x: x)
+    monkeypatch.setattr(ai, "infer_salary", lambda x: None)
+
+    ai.process_all_jobs()
+
+    text = captured.get("text", "")
+    assert "Data Scientist" in text
+    assert "ACME" in text

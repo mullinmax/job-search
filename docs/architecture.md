@@ -19,6 +19,8 @@ This project is a small job search and ranking tool built with **FastAPI**. Jobs
 - **Ollama Integration**
   - When `OLLAMA_BASE_URL` is set, descriptions are summarized and embedded via Ollama’s API. The model name defaults to `llama3` and can be changed with `OLLAMA_MODEL`.
   - Summaries and embeddings are generated in `process_all_jobs`.
+  - The embedding text now includes the job title and company so the model
+    captures more context when ranking roles.
 - **Client UI**
   - HTML templates render pages for searching, swiping, viewing stats and managing stored jobs. Styling lives in `app/static/style.css`.
   - The stats page also shows model performance including accuracy, precision, recall and counts of false/true positives and negatives.
