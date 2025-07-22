@@ -45,6 +45,8 @@
 <p>Total jobs stored: {{ stats.total_jobs }}</p>
 <p>Jobs with summaries: {{ stats.jobs_with_summaries }}</p>
 <p>Jobs with embeddings: {{ stats.jobs_with_embeddings }}</p>
+<p>Rated roles: {{ stats.rated_roles }} ({{ stats.positive_roles }} liked, {{ stats.negative_roles }} disliked)</p>
+<p>Unrated roles: {{ stats.unrated_roles }}</p>
 
 <h3>Roles per Source</h3>
 <table class="table table-sm data-table">
@@ -75,6 +77,7 @@
 <h2 class="mt-5">Model Performance</h2>
 {% if model_stats.total > 0 %}
 <ul>
+  <li>Evaluated on {{ model_stats.total }} samples</li>
   <li>Accuracy: {{ '{:.0%}'.format(model_stats.accuracy) }}</li>
   <li>Precision: {{ '{:.0%}'.format(model_stats.precision) }}</li>
   <li>Recall: {{ '{:.0%}'.format(model_stats.recall) }}</li>

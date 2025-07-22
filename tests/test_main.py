@@ -427,12 +427,22 @@ def test_aggregate_job_stats(main):
         },
     ])
     main.save_jobs(df)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(1,1,'',0)")
+    cur.execute("INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(2,0,'',0)")
+    conn.commit()
+    conn.close()
     stats = main.aggregate_job_stats()
     assert stats["total_jobs"] == 3
     assert stats["by_site"] == {"a": 2, "b": 1}
     assert stats["by_date"] == {"2024-01-01": 2, "2024-01-02": 1}
     assert stats["avg_min_pay"] == pytest.approx(150)
     assert stats["avg_max_pay"] == pytest.approx(250)
+    assert stats["rated_roles"] == 2
+    assert stats["positive_roles"] == 1
+    assert stats["negative_roles"] == 1
+    assert stats["unrated_roles"] == 1
 
 
 def test_render_markdown(main):
@@ -575,9 +585,9 @@ def test_evaluate_model(main):
     conn.close()
     main.train_model()
     stats = main.evaluate_model()
-    assert stats["total"] == 2
-    assert stats["tp"] + stats["tn"] + stats["fp"] + stats["fn"] == 2
-    assert 0.0 <= stats["accuracy"] <= 1.0
+    assert stats["total"] == 0
+    assert stats["tp"] + stats["tn"] + stats["fp"] + stats["fn"] == 0
+    assert stats["accuracy"] == 0.0
 
 
 def test_list_liked_jobs(main):

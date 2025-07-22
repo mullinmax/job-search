@@ -399,6 +399,14 @@ def aggregate_job_stats() -> Dict:
     cur.execute("SELECT COUNT(*) FROM embeddings")
     embeddings_count = cur.fetchone()[0]
 
+    cur.execute("SELECT COUNT(DISTINCT job_id) FROM feedback")
+    rated_total = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=1")
+    positive_total = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=0")
+    negative_total = cur.fetchone()[0]
+    unrated_total = total_jobs - rated_total
+
     conn.close()
     return {
         "total_jobs": total_jobs,
@@ -408,6 +416,10 @@ def aggregate_job_stats() -> Dict:
         "avg_max_pay": avg_max or 0,
         "jobs_with_summaries": summaries_count,
         "jobs_with_embeddings": embeddings_count,
+        "rated_roles": rated_total,
+        "positive_roles": positive_total,
+        "negative_roles": negative_total,
+        "unrated_roles": unrated_total,
     }
 
 
