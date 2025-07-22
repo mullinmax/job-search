@@ -538,22 +538,22 @@ def dedup_action(pair_ids: str = Form(...), dup: int = Form(...)):
         j2 = get_job(id2)
 
         def parse_date(d: str) -> pd.Timestamp:
-            """Return parsed UTC timestamp or Timestamp.min if invalid."""
+            """Return parsed UTC timestamp or UTC Timestamp.min if invalid."""
             if not d:
-                return pd.Timestamp.min
+                return pd.Timestamp.min.tz_localize("UTC")
             try:
                 dt = pd.to_datetime(d, utc=True, errors="coerce")
             except Exception:
-                return pd.Timestamp.min
-            return dt if not pd.isna(dt) else pd.Timestamp.min
+                return pd.Timestamp.min.tz_localize("UTC")
+            return dt if not pd.isna(dt) else pd.Timestamp.min.tz_localize("UTC")
 
         if j1 and j1.get("site") == "upload":
             keep, remove = id1, id2
         elif j2 and j2.get("site") == "upload":
             keep, remove = id2, id1
         else:
-            t1 = parse_date(j1.get("date_posted")) if j1 else pd.Timestamp.min
-            t2 = parse_date(j2.get("date_posted")) if j2 else pd.Timestamp.min
+            t1 = parse_date(j1.get("date_posted")) if j1 else pd.Timestamp.min.tz_localize("UTC")
+            t2 = parse_date(j2.get("date_posted")) if j2 else pd.Timestamp.min.tz_localize("UTC")
             if t1 >= t2:
                 keep, remove = id1, id2
             else:
