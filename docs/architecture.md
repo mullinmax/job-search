@@ -23,7 +23,7 @@ This project is a small job search and ranking tool built with **FastAPI**. Jobs
     captures more context when ranking roles.
 - **Client UI**
   - HTML templates render pages for searching, swiping, viewing stats and managing stored jobs. Styling lives in `app/static/style.css`.
-  - The stats page also shows model performance including accuracy, precision, recall and counts of false/true positives and negatives.
+  - The stats page also shows model performance including accuracy, precision, recall and counts of false/true positives and negatives. Metrics are calculated on a 10% holdout sample from the feedback data.
 - **Tests** – under `tests/` using `pytest` to cover database operations and job fetching logic.
 - **Docker** – `Dockerfile` and `build.sh` build a container image. GitHub Actions automatically build and push on merges to `main`.
 

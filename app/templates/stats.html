@@ -75,6 +75,7 @@
 <h2 class="mt-5">Model Performance</h2>
 {% if model_stats.total > 0 %}
 <ul>
+  <li>Evaluated on {{ model_stats.total }} samples</li>
   <li>Accuracy: {{ '{:.0%}'.format(model_stats.accuracy) }}</li>
   <li>Precision: {{ '{:.0%}'.format(model_stats.precision) }}</li>
   <li>Recall: {{ '{:.0%}'.format(model_stats.recall) }}</li>
