@@ -75,6 +75,15 @@
 <p>Average salary (where provided): {{ format_salary(stats.avg_min_pay, stats.avg_max_pay, 'USD') }}</p>
 
 <h2 class="mt-5">Model Performance</h2>
+<div class="mb-3">
+  <form class="d-inline" method="post" action="/train">
+    <button class="btn btn-primary btn-sm" type="submit">Retrain Model</button>
+  </form>
+  <button class="btn btn-secondary btn-sm ms-2" type="button"
+          onclick="alert('Rated {{ stats.rated_roles }} of {{ min_feedback }} roles');">
+    Show Data Needed
+  </button>
+</div>
 {% if model_stats.total > 0 %}
 <ul>
   <li>Evaluated on {{ model_stats.total }} samples</li>
@@ -87,7 +96,7 @@
   <li>False Negatives: {{ model_stats.fn }}</li>
 </ul>
 {% else %}
-<p>No feedback available to evaluate the model.</p>
+<p>Not enough data available to evaluate the model.</p>
 {% endif %}
 
 <h2 class="mt-5">Predicted Matches</h2>
