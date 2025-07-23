@@ -12,6 +12,17 @@ from . import main as app_main
 from .ai import OLLAMA_ENABLED, process_all_jobs, render_markdown
 from .utils import sanitize_html
 from .model import train_model, _model
+from threading import Thread, Lock
+
+# Ensure only one background training task runs at a time
+_train_lock = Lock()
+
+def _train_async() -> None:
+    """Run model training in a background thread."""
+    try:
+        train_model()
+    finally:
+        _train_lock.release()
 from .database import connect_db
 
 
@@ -470,8 +481,9 @@ def record_feedback(
     else:
         retrain = True
 
-    if retrain:
-        train_model()
+    if retrain and not _train_lock.locked():
+        _train_lock.acquire()
+        Thread(target=_train_async, daemon=True).start()
 
 
 def update_feedback(job_id: int, liked: bool, tags: List[str]) -> None:
