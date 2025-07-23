@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Label Outliers{% endblock %}
+{% block content %}
+<h1 class="mb-4">Label Outliers</h1>
+{% if outliers %}
+<table class="table table-sm data-table">
+  <thead>
+    <tr><th>Title</th><th>Company</th><th>Rated</th><th>Model</th><th>Confidence</th></tr>
+  </thead>
+  <tbody>
+  {% for o in outliers %}
+  <tr>
+    <td><a href="/swipe?job_id={{ o.id }}">{{ o.title }}</a></td>
+    <td>{{ o.company }}</td>
+    <td>{% if o.liked %}<span class="text-success">✔</span>{% else %}<span class="text-danger">✖</span>{% endif %}</td>
+    <td>{% if o.predicted %}<span class="text-success">✔</span>{% else %}<span class="text-danger">✖</span>{% endif %}</td>
+    <td>{{ '{:.0%}'.format(o.confidence) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No outliers detected.</p>
+{% endif %}
+{% endblock %}

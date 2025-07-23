@@ -15,7 +15,9 @@ from .database import connect_db
 class _ModelWrapper:
     """Wrapper that standardizes prediction API across model types."""
 
-    def __init__(self, name: str, model: Any, description: str, *, use_tags: bool) -> None:
+    def __init__(
+        self, name: str, model: Any, description: str, *, use_tags: bool
+    ) -> None:
         self.name = name
         self.model = model
         self.description = description
@@ -111,9 +113,9 @@ def train_model() -> None:
             continue
         tags = []
         if fb_tags:
-            tags.extend(t.strip() for t in str(fb_tags).split(',') if t.strip())
+            tags.extend(t.strip() for t in str(fb_tags).split(",") if t.strip())
         if job_tags:
-            tags.extend(t.strip() for t in str(job_tags).split(',') if t.strip())
+            tags.extend(t.strip() for t in str(job_tags).split(",") if t.strip())
         seen = set()
         uniq = []
         for t in tags:
@@ -168,9 +170,17 @@ def train_model() -> None:
     base_models = [
         ("logreg", LogisticRegression(max_iter=1000), "Logistic Regression"),
         ("forest", RandomForestClassifier(n_estimators=100), "Random Forest"),
-        ("svm", SVC(kernel='linear', probability=True), "Support Vector Machine"),
-        ("mlp", MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=500), "Neural Network"),
-        ("kmeans", KMeans(n_clusters=2, n_init='auto', random_state=0), "KMeans Clustering"),
+        ("svm", SVC(kernel="linear", probability=True), "Support Vector Machine"),
+        (
+            "mlp",
+            MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=500),
+            "Neural Network",
+        ),
+        (
+            "kmeans",
+            KMeans(n_clusters=2, n_init="auto", random_state=0),
+            "KMeans Clustering",
+        ),
     ]
     candidates: List[_ModelWrapper] = []
     for name, model, desc in base_models:
@@ -255,7 +265,9 @@ def predict_unrated() -> List[Dict]:
         vec = json.loads(emb)
         if not vec:
             continue
-        tag_list = [t.strip() for t in str(tags).split(',') if t.strip()] if tags else []
+        tag_list = (
+            [t.strip() for t in str(tags).split(",") if t.strip()] if tags else []
+        )
         if _tag_binarizer is not None:
             filtered = [t for t in tag_list if t in _known_tags]
             tag_vec = _tag_binarizer.transform([filtered])[0]
@@ -309,7 +321,7 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
     except Exception:
         return None
     tags = row[1] if row and len(row) > 1 else None
-    tag_list = [t.strip() for t in str(tags).split(',') if t.strip()] if tags else []
+    tag_list = [t.strip() for t in str(tags).split(",") if t.strip()] if tags else []
     if _tag_binarizer is not None:
         filtered = [t for t in tag_list if t in _known_tags]
         tag_vec = _tag_binarizer.transform([filtered])[0]
@@ -320,9 +332,7 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
     if not vec or (expected_dim is not None and len(feat) != expected_dim):
         return None
     try:
-        prob = float(
-            _model.predict_proba(np.array([vec]), np.array([tag_vec]))[0, 1]
-        )
+        prob = float(_model.predict_proba(np.array([vec]), np.array([tag_vec]))[0, 1])
         match = bool(_model.predict(np.array([vec]), np.array([tag_vec]))[0])
     except Exception:
         return None
@@ -370,7 +380,11 @@ def evaluate_model() -> Dict[str, float | int]:
         accuracy = (tp + tn) / total if total else 0.0
         precision = tp / (tp + fp) if (tp + fp) else 0.0
         recall = tp / (tp + fn) if (tp + fn) else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall)
+            else 0.0
+        )
         metrics = {
             "name": _model.name,
             "description": _model.description,
@@ -388,3 +402,70 @@ def evaluate_model() -> Dict[str, float | int]:
     result["models"] = list(_model_metrics.values())
     result["model_name"] = _model.description
     return result
+
+
+def find_outliers(threshold: float = 0.75) -> List[Dict]:
+    """Return rated jobs the models disagree with."""
+    if not _models:
+        return []
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT j.id, j.title, j.company, e.embedding,
+               GROUP_CONCAT(t.tag), f.liked, MIN(f.rated_at)
+        FROM jobs j
+        JOIN feedback f ON j.id = f.job_id
+        JOIN embeddings e ON j.id = e.job_id
+        LEFT JOIN job_tags t ON j.id = t.job_id
+        GROUP BY j.id
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    results = []
+    for job_id, title, company, emb, tags, liked, rated_at in rows:
+        try:
+            vec = json.loads(emb)
+        except Exception:
+            continue
+        tag_list = (
+            [t.strip() for t in str(tags).split(",") if t.strip()] if tags else []
+        )
+        if _tag_binarizer is not None:
+            filtered = [t for t in tag_list if t in _known_tags]
+            tag_vec = _tag_binarizer.transform([filtered])[0]
+        else:
+            tag_vec = np.array([])
+        counts = {1: 0, 0: 0}
+        for mdl in _models:
+            feat = mdl._combine(np.array([vec]), np.array([tag_vec]))
+            if mdl.expected_dim is not None and feat.shape[1] != mdl.expected_dim:
+                continue
+            try:
+                pred = int(mdl.predict(np.array([vec]), np.array([tag_vec]))[0])
+            except Exception:
+                continue
+            counts[pred] += 1
+        total = counts[1] + counts[0]
+        if total == 0:
+            continue
+        majority = counts[1] / total
+        predicted = majority >= 0.5
+        if predicted != bool(liked) and (
+            majority >= threshold or 1 - majority >= threshold
+        ):
+            results.append(
+                {
+                    "id": job_id,
+                    "title": title,
+                    "company": company,
+                    "liked": bool(liked),
+                    "predicted": predicted,
+                    "confidence": majority if predicted else 1 - majority,
+                    "rated_at": rated_at,
+                }
+            )
+    results.sort(key=lambda r: r["confidence"], reverse=True)
+    return results

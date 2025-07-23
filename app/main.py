@@ -13,7 +13,12 @@ from threading import Thread, Lock
 import io
 import pandas as pd
 from fastapi import FastAPI, Form, Request, BackgroundTasks, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+from fastapi.responses import (
+    HTMLResponse,
+    RedirectResponse,
+    JSONResponse,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from .scrapers import (
@@ -43,6 +48,7 @@ from .db import (
     mark_not_duplicates,
     find_duplicate_jobs,
     _transfer_feedback,
+    save_feedback,
 )
 from .database import connect_db
 from .ai import (
@@ -54,12 +60,14 @@ from .ai import (
     regenerate_job_ai,
 )
 from .utils import sanitize_html
-from .model import train_model, predict_unrated, evaluate_model
+from .model import train_model, predict_unrated, evaluate_model, find_outliers
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
-BUILD_NUMBER = os.environ.get("GITHUB_RUN_NUMBER") or os.environ.get("BUILD_NUMBER", "dev")
+BUILD_NUMBER = os.environ.get("GITHUB_RUN_NUMBER") or os.environ.get(
+    "BUILD_NUMBER", "dev"
+)
 templates.env.globals["build_number"] = BUILD_NUMBER
 
 # Store progress messages for the fetch process
@@ -97,12 +105,16 @@ Job posting:
 """{description}"""
 '''
 
+
 def format_salary(min_amount: float, max_amount: float, currency: str) -> str:
     """Return a salary range rounded to the nearest thousand with 'k' suffix."""
+
     def to_k(val: float) -> str:
         return f"{round(val / 1000):.0f}k"
+
     cur = "$" if not currency or currency.upper() == "USD" else currency
     return f"{cur}{to_k(min_amount)} - {cur}{to_k(max_amount)}"
+
 
 templates.env.globals["format_salary"] = format_salary
 
@@ -205,7 +217,9 @@ def highlight_diffs(a: Dict, b: Dict) -> Tuple[Dict[str, str], Dict[str, str]]:
     res_a: Dict[str, str] = {}
     res_b: Dict[str, str] = {}
     for f, render in fields:
-        res_a[f + "_html"], res_b[f + "_html"] = markup(str(a.get(f) or ""), str(b.get(f) or ""), render)
+        res_a[f + "_html"], res_b[f + "_html"] = markup(
+            str(a.get(f) or ""), str(b.get(f) or ""), render
+        )
     res_a["summary"] = a.get("summary")
     res_b["summary"] = b.get("summary")
     res_a["id"] = a.get("id")
@@ -214,13 +228,11 @@ def highlight_diffs(a: Dict, b: Dict) -> Tuple[Dict[str, str], Dict[str, str]]:
     res_b["site"] = b.get("site")
     return res_a, res_b
 
+
 def log_progress(message: str) -> None:
     """Log a progress message to the logger and internal buffer."""
     logger.info(message)
     progress_logs.append(message)
-
-
-
 
 
 fetch_lock = Lock()
@@ -280,6 +292,7 @@ def on_startup() -> None:
     init_db()
     train_model()
     if OLLAMA_ENABLED:
+
         def worker():
             ensure_model_downloaded()
             process_all_jobs()
@@ -334,8 +347,10 @@ def rate_form(request: Request, job_id: int, liked: int):
 
 
 @app.post("/feedback")
-def feedback(job_id: int = Form(...), liked: int = Form(...), tags: List[str] = Form(None)):
-    record_feedback(job_id, bool(liked), tags or [])
+def feedback(
+    job_id: int = Form(...), liked: int = Form(...), tags: List[str] = Form(None)
+):
+    save_feedback(job_id, bool(liked), tags or [])
     return RedirectResponse("/swipe", status_code=303)
 
 
@@ -358,6 +373,15 @@ def stats(request: Request):
     )
 
 
+@app.get("/outliers", response_class=HTMLResponse)
+def outliers(request: Request):
+    data = find_outliers()
+    return templates.TemplateResponse(
+        "outliers.html",
+        {"request": request, "outliers": data},
+    )
+
+
 @app.post("/train", response_class=HTMLResponse)
 def train(request: Request):
     """Retrain the logistic regression model."""
@@ -365,11 +389,11 @@ def train(request: Request):
     return RedirectResponse("/stats", status_code=303)
 
 
-
-
 @app.get("/manage", response_class=HTMLResponse)
 def manage(request: Request):
-    return templates.TemplateResponse("manage.html", {"request": request, "deleted": None})
+    return templates.TemplateResponse(
+        "manage.html", {"request": request, "deleted": None}
+    )
 
 
 @app.post("/cleanup", response_class=HTMLResponse)
@@ -444,7 +468,9 @@ def regen_job(request: Request, job_id: int, background_tasks: BackgroundTasks):
 
 
 @app.post("/regen_jobs", response_class=HTMLResponse)
-def regen_jobs(request: Request, background_tasks: BackgroundTasks, job_ids: List[int] = Form(...)):
+def regen_jobs(
+    request: Request, background_tasks: BackgroundTasks, job_ids: List[int] = Form(...)
+):
     progress_logs.clear()
     background_tasks.add_task(regen_jobs_task, job_ids)
     return templates.TemplateResponse("progress.html", {"request": request})
@@ -461,14 +487,16 @@ def export_likes():
         df["min_amount"] = pd.to_numeric(df["min_amount"], errors="coerce")
         df["max_amount"] = pd.to_numeric(df["max_amount"], errors="coerce")
         df["Pay Range"] = df.apply(
-            lambda r: format_salary(r["min_amount"], r["max_amount"], r["currency"])
-            if (
-                pd.notnull(r["min_amount"])
-                and pd.notnull(r["max_amount"])
-                and r["min_amount"] > 0
-                and r["max_amount"] > 0
-            )
-            else "",
+            lambda r: (
+                format_salary(r["min_amount"], r["max_amount"], r["currency"])
+                if (
+                    pd.notnull(r["min_amount"])
+                    and pd.notnull(r["max_amount"])
+                    and r["min_amount"] > 0
+                    and r["max_amount"] > 0
+                )
+                else ""
+            ),
             axis=1,
         )
         df = df.rename(
@@ -516,14 +544,13 @@ def export_likes():
     buf = io.BytesIO()
     df.to_excel(buf, index=False, engine="openpyxl")
     buf.seek(0)
-    headers = {
-        "Content-Disposition": "attachment; filename=liked_jobs.xlsx"
-    }
+    headers = {"Content-Disposition": "attachment; filename=liked_jobs.xlsx"}
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
     )
+
 
 @app.get("/dedup", response_class=HTMLResponse)
 def dedup(request: Request):
@@ -566,8 +593,16 @@ def dedup_action(pair_ids: str = Form(...), dup: int = Form(...)):
         elif j2 and j2.get("site") == "upload":
             keep, remove = id2, id1
         else:
-            t1 = parse_date(j1.get("date_posted")) if j1 else pd.Timestamp.min.tz_localize("UTC")
-            t2 = parse_date(j2.get("date_posted")) if j2 else pd.Timestamp.min.tz_localize("UTC")
+            t1 = (
+                parse_date(j1.get("date_posted"))
+                if j1
+                else pd.Timestamp.min.tz_localize("UTC")
+            )
+            t2 = (
+                parse_date(j2.get("date_posted"))
+                if j2
+                else pd.Timestamp.min.tz_localize("UTC")
+            )
             if t1 >= t2:
                 keep, remove = id1, id2
             else:
@@ -595,19 +630,21 @@ def import_custom_csv(data: bytes) -> int:
     df = pd.read_csv(io.BytesIO(data))
     if df.empty:
         return 0
-    jobs = pd.DataFrame({
-        "site": "upload",
-        "title": df.get("Job Title"),
-        "company": df.get("Company"),
-        "location": df.get("City"),
-        "date_posted": df.get("Posted Date"),
-        "description": "",
-        "interval": "",
-        "min_amount": None,
-        "max_amount": None,
-        "currency": None,
-        "job_url": df.get("Hyperlink"),
-    })
+    jobs = pd.DataFrame(
+        {
+            "site": "upload",
+            "title": df.get("Job Title"),
+            "company": df.get("Company"),
+            "location": df.get("City"),
+            "date_posted": df.get("Posted Date"),
+            "description": "",
+            "interval": "",
+            "min_amount": None,
+            "max_amount": None,
+            "currency": None,
+            "job_url": df.get("Hyperlink"),
+        }
+    )
     ids = save_jobs(jobs)
     for row, job_id in zip(df.itertuples(), ids):
         rated = pd.to_datetime(getattr(row, "Farmed Date", None), errors="coerce")
