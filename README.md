@@ -53,7 +53,9 @@ docker compose up
   incorporated when training the matching model. Each algorithm is now
   trained twice: once using only the embeddings and again with the tag
   vectors appended. The statistics page lists accuracy metrics for all
-  variants so you can compare their performance.
+  variants so you can compare their performance. In addition to logistic regression,
+  random forests and SVMs, a small neural network is also trained to see if a
+  deep learning approach yields better results.
    If any job boards fail to fetch (for example due to network restrictions) the
   progress screen now shows detailed logs so you can see which sources were skipped.
   A statistics page summarizes stored jobs and reports model accuracy, precision and recall using a 10% holdout set so you can track its performance. It also lists how many roles have been rated positively, negatively or not at all.

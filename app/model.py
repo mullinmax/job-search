@@ -6,6 +6,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.cluster import KMeans
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import MultiLabelBinarizer
 
 from .database import connect_db
@@ -168,6 +169,7 @@ def train_model() -> None:
         ("logreg", LogisticRegression(max_iter=1000), "Logistic Regression"),
         ("forest", RandomForestClassifier(n_estimators=100), "Random Forest"),
         ("svm", SVC(kernel='linear', probability=True), "Support Vector Machine"),
+        ("mlp", MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=500), "Neural Network"),
         ("kmeans", KMeans(n_clusters=2, n_init='auto', random_state=0), "KMeans Clustering"),
     ]
     candidates: List[_ModelWrapper] = []

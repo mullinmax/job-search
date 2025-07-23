@@ -23,7 +23,7 @@ This project is a small job search and ranking tool built with **FastAPI**. Jobs
     captures more context when ranking roles.
 - **Client UI**
   - HTML templates render pages for searching, swiping, viewing stats and managing stored jobs. Styling lives in `app/static/style.css`.
-  - The stats page shows performance for several algorithms (logistic regression, random forest, SVM and a clustering approach). The app trains all of them and keeps the one with the highest recall. Metrics for each candidate are displayed in a table so you can compare their accuracy, precision, recall and F1 score. Results are calculated on a 10% holdout set when possible.
+  - The stats page shows performance for several algorithms (logistic regression, random forest, a neural network, SVM and a clustering approach). The app trains all of them and keeps the one with the highest recall. Metrics for each candidate are displayed in a table so you can compare their accuracy, precision, recall and F1 score. Results are calculated on a 10% holdout set when possible.
 - **Tests** – under `tests/` using `pytest` to cover database operations and job fetching logic.
 - **Docker** – `Dockerfile` and `build.sh` build a container image. GitHub Actions automatically build and push on merges to `main`.
 
