@@ -177,6 +177,16 @@ def train_model() -> None:
             "Neural Network",
         ),
         (
+            "mlp_big",
+            MLPClassifier(hidden_layer_sizes=(128, 64, 32), max_iter=500),
+            "Neural Network (deep)",
+        ),
+        (
+            "mlp_bigger",
+            MLPClassifier(hidden_layer_sizes=(256, 128, 64, 32), max_iter=500),
+            "Neural Network (deeper)",
+        ),
+        (
             "kmeans",
             KMeans(n_clusters=2, n_init="auto", random_state=0),
             "KMeans Clustering",
