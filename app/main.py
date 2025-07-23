@@ -374,6 +374,13 @@ def stats(request: Request):
             neg.append(t)
         else:
             neutral.append(t)
+    if not pos and tag_stats_raw:
+        pos = sorted(
+            tag_stats_raw,
+            key=lambda x: (-(x["phi"]), -(x["positive"] + x["negative"])),
+        )[:10]
+        pos_tags = {t["tag"] for t in pos}
+        neutral = [t for t in neutral if t["tag"] not in pos_tags]
     pos.sort(key=lambda x: (-(x["phi"]), -(x["positive"] + x["negative"])))
     neg.sort(key=lambda x: (x["phi"], -(x["positive"] + x["negative"])))
     neutral.sort(key=lambda x: -(x["positive"] + x["negative"]))
