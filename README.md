@@ -48,9 +48,12 @@ docker compose up
    After results are saved you can swipe through postings one at a time
    using the green ✓ button to mark a good match or the red ✖ button to
    reject it. After choosing either option you will be shown a list of
-   tags extracted from the posting and can select which ones influenced
-   your decision. These tags are stored along with your feedback and
-   incorporated when training the matching model.
+  tags extracted from the posting and can select which ones influenced
+  your decision. These tags are stored along with your feedback and
+  incorporated when training the matching model. Each algorithm is now
+  trained twice: once using only the embeddings and again with the tag
+  vectors appended. The statistics page lists accuracy metrics for all
+  variants so you can compare their performance.
    If any job boards fail to fetch (for example due to network restrictions) the
   progress screen now shows detailed logs so you can see which sources were skipped.
   A statistics page summarizes stored jobs and reports model accuracy, precision and recall using a 10% holdout set so you can track its performance. It also lists how many roles have been rated positively, negatively or not at all.

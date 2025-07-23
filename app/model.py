@@ -14,13 +14,22 @@ from .database import connect_db
 class _ModelWrapper:
     """Wrapper that standardizes prediction API across model types."""
 
-    def __init__(self, name: str, model: Any, description: str) -> None:
+    def __init__(self, name: str, model: Any, description: str, *, use_tags: bool) -> None:
         self.name = name
         self.model = model
         self.description = description
+        self.use_tags = use_tags
         self._cluster_labels: Dict[int, int] | None = None
+        self.expected_dim: int | None = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
+    def _combine(self, X_emb: np.ndarray, tags: np.ndarray) -> np.ndarray:
+        if self.use_tags and tags.size:
+            return np.hstack([X_emb, tags])
+        return X_emb
+
+    def fit(self, X_emb: np.ndarray, tags: np.ndarray, y: np.ndarray) -> None:
+        X = self._combine(X_emb, tags)
+        self.expected_dim = X.shape[1]
         if isinstance(self.model, KMeans):
             self.model.fit(X)
             clusters = self.model.predict(X)
@@ -34,15 +43,17 @@ class _ModelWrapper:
         else:
             self.model.fit(X, y)
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X_emb: np.ndarray, tags: np.ndarray) -> np.ndarray:
+        X = self._combine(X_emb, tags)
         if isinstance(self.model, KMeans):
             clusters = self.model.predict(X)
             return np.array([self._cluster_labels.get(int(c), 0) for c in clusters])
         return self.model.predict(X)
 
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+    def predict_proba(self, X_emb: np.ndarray, tags: np.ndarray) -> np.ndarray:
+        X = self._combine(X_emb, tags)
         if isinstance(self.model, KMeans):
-            preds = self.predict(X)
+            preds = self.predict(X_emb, tags)
             return np.vstack([1 - preds, preds]).T.astype(float)
         if hasattr(self.model, "predict_proba"):
             return self.model.predict_proba(X)
@@ -50,7 +61,7 @@ class _ModelWrapper:
             scores = self.model.decision_function(X)
             probs = 1 / (1 + np.exp(-scores))
             return np.vstack([1 - probs, probs]).T
-        preds = self.predict(X)
+        preds = self.predict(X_emb, tags)
         return np.vstack([1 - preds, preds]).T.astype(float)
 
 
@@ -58,8 +69,8 @@ _model: _ModelWrapper | None = None
 _models: List[_ModelWrapper] = []
 _model_metrics: Dict[str, Dict[str, Any]] = {}
 _tag_binarizer: MultiLabelBinarizer | None = None
-_eval_set: Tuple[np.ndarray, np.ndarray] | None = None
-_train_set: Tuple[np.ndarray, np.ndarray] | None = None
+_eval_set: Tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
+_train_set: Tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
 _known_tags: Set[str] = set()
 
 
@@ -124,9 +135,10 @@ def train_model() -> None:
     _tag_binarizer = MultiLabelBinarizer()
     tag_matrix = _tag_binarizer.fit_transform(tag_sets)
     _known_tags = set(_tag_binarizer.classes_)
-    X = np.hstack([np.array(X_emb), tag_matrix])
+
+    X_emb_np = np.array(X_emb)
     y = np.array(y_list)
-    _train_set = (X, y)
+    _train_set = (X_emb_np, tag_matrix, y)
     if len(set(y)) < 2:
         _model = None
         _tag_binarizer = None
@@ -145,24 +157,46 @@ def train_model() -> None:
     if len(train_idx) < 2 or len(set(y[train_idx])) < 2:
         train_idx = idx
         test_idx = []
-    X_train = X[train_idx]
+    X_train_emb = X_emb_np[train_idx]
+    X_train_tags = tag_matrix[train_idx]
     y_train = y[train_idx]
-    X_test = X[test_idx]
+    X_test_emb = X_emb_np[test_idx]
+    X_test_tags = tag_matrix[test_idx]
     y_test = y[test_idx]
 
-    candidates = [
-        _ModelWrapper("logreg", LogisticRegression(max_iter=1000), "Logistic Regression"),
-        _ModelWrapper("forest", RandomForestClassifier(n_estimators=100), "Random Forest"),
-        _ModelWrapper("svm", SVC(kernel='linear', probability=True), "Support Vector Machine"),
-        _ModelWrapper("kmeans", KMeans(n_clusters=2, n_init='auto', random_state=0), "KMeans Clustering"),
+    base_models = [
+        ("logreg", LogisticRegression(max_iter=1000), "Logistic Regression"),
+        ("forest", RandomForestClassifier(n_estimators=100), "Random Forest"),
+        ("svm", SVC(kernel='linear', probability=True), "Support Vector Machine"),
+        ("kmeans", KMeans(n_clusters=2, n_init='auto', random_state=0), "KMeans Clustering"),
     ]
+    candidates: List[_ModelWrapper] = []
+    for name, model, desc in base_models:
+        params = model.get_params() if hasattr(model, "get_params") else {}
+        candidates.append(
+            _ModelWrapper(
+                f"{name}_tags",
+                model.__class__(**params),
+                f"{desc} + tags",
+                use_tags=True,
+            )
+        )
+        candidates.append(
+            _ModelWrapper(
+                f"{name}_base",
+                model.__class__(**params),
+                f"{desc} (no tags)",
+                use_tags=False,
+            )
+        )
 
     metrics: Dict[str, Dict[str, Any]] = {}
     for cand in candidates:
-        cand.fit(X_train, y_train)
-        eval_X = X_test if len(X_test) else X_train
-        eval_y = y_test if len(X_test) else y_train
-        preds = cand.predict(eval_X)
+        cand.fit(X_train_emb, X_train_tags, y_train)
+        eval_emb = X_test_emb if len(X_test_emb) else X_train_emb
+        eval_tags = X_test_tags if len(X_test_tags) else X_train_tags
+        eval_y = y_test if len(X_test_emb) else y_train
+        preds = cand.predict(eval_emb, eval_tags)
         tp = int(np.sum((preds == 1) & (eval_y == 1)))
         tn = int(np.sum((preds == 0) & (eval_y == 0)))
         fp = int(np.sum((preds == 1) & (eval_y == 0)))
@@ -191,7 +225,7 @@ def train_model() -> None:
     best_key = max(metrics.values(), key=lambda m: (m["recall"], m["f1"]))["name"]
     _model = next(c for c in candidates if c.name == best_key)
 
-    _eval_set = (X_test, y_test)
+    _eval_set = (X_test_emb, X_test_tags, y_test)
 
 
 def predict_unrated() -> List[Dict]:
@@ -214,7 +248,7 @@ def predict_unrated() -> List[Dict]:
     rows = cur.fetchall()
     conn.close()
     results = []
-    expected_dim = getattr(_model.model, "n_features_in_", None)
+    expected_dim = _model.expected_dim
     for job_id, title, company, emb, tags in rows:
         vec = json.loads(emb)
         if not vec:
@@ -223,14 +257,16 @@ def predict_unrated() -> List[Dict]:
         if _tag_binarizer is not None:
             filtered = [t for t in tag_list if t in _known_tags]
             tag_vec = _tag_binarizer.transform([filtered])[0]
-            feat = np.hstack([vec, tag_vec])
         else:
-            feat = vec
+            tag_vec = np.array([])
+        feat = np.hstack([vec, tag_vec]) if _model.use_tags and tag_vec.size else vec
         if expected_dim is not None and len(feat) != expected_dim:
             continue
         try:
-            prob = float(_model.predict_proba([feat])[0, 1])
-            match = bool(_model.predict([feat])[0])
+            prob = float(
+                _model.predict_proba(np.array([vec]), np.array([tag_vec]))[0, 1]
+            )
+            match = bool(_model.predict(np.array([vec]), np.array([tag_vec]))[0])
         except Exception:
             continue
         results.append(
@@ -275,15 +311,17 @@ def predict_job(job_id: int) -> Optional[Tuple[bool, float]]:
     if _tag_binarizer is not None:
         filtered = [t for t in tag_list if t in _known_tags]
         tag_vec = _tag_binarizer.transform([filtered])[0]
-        feat = np.hstack([vec, tag_vec])
     else:
-        feat = vec
-    expected_dim = getattr(_model.model, "n_features_in_", None)
+        tag_vec = np.array([])
+    feat = np.hstack([vec, tag_vec]) if _model.use_tags and tag_vec.size else vec
+    expected_dim = _model.expected_dim
     if not vec or (expected_dim is not None and len(feat) != expected_dim):
         return None
     try:
-        prob = float(_model.predict_proba([feat])[0, 1])
-        match = bool(_model.predict([feat])[0])
+        prob = float(
+            _model.predict_proba(np.array([vec]), np.array([tag_vec]))[0, 1]
+        )
+        match = bool(_model.predict(np.array([vec]), np.array([tag_vec]))[0])
     except Exception:
         return None
     return match, prob
@@ -303,10 +341,10 @@ def evaluate_model() -> Dict[str, float | int]:
             "recall": 0.0,
         }
 
-    if _eval_set is not None and len(_eval_set[1]) > 0:
-        X_eval, y_eval = _eval_set
+    if _eval_set is not None and len(_eval_set[2]) > 0:
+        X_emb_eval, tag_eval, y_eval = _eval_set
     elif _train_set is not None:
-        X_eval, y_eval = _train_set
+        X_emb_eval, tag_eval, y_eval = _train_set
     else:
         return {
             "total": 0,
@@ -321,7 +359,7 @@ def evaluate_model() -> Dict[str, float | int]:
 
     metrics = _model_metrics.get(_model.name)
     if metrics is None:
-        preds = _model.predict(X_eval)
+        preds = _model.predict(X_emb_eval, tag_eval)
         tp = int(np.sum((preds == 1) & (y_eval == 1)))
         tn = int(np.sum((preds == 0) & (y_eval == 0)))
         fp = int(np.sum((preds == 1) & (y_eval == 0)))
