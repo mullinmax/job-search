@@ -334,3 +334,70 @@ def regenerate_job_ai(job_id: int) -> None:
         )
     conn.commit()
     conn.close()
+
+def _has_common_substring(a: str, b: str, length: int = 3) -> bool:
+    a = re.sub(r"[^a-z0-9]", "", a.lower())
+    b = re.sub(r"[^a-z0-9]", "", b.lower())
+    for i in range(len(a) - length + 1):
+        if a[i : i + length] in b:
+            return True
+    return False
+
+
+def are_tags_equivalent(tag1: str, tag2: str) -> bool:
+    """Use Ollama to decide if two tags mean the same thing."""
+    if not OLLAMA_ENABLED:
+        return False
+    if tag1.lower() == tag2.lower():
+        return True
+    prompt = (
+        "Do the following job skill tags refer to the same concept? "
+        f"1. {tag1}\n2. {tag2}\nAnswer yes or no."
+    )
+    try:
+        r = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={"model": OLLAMA_REPHRASE_MODEL, "prompt": prompt, "stream": False},
+            timeout=60,
+        )
+        r.raise_for_status()
+        resp = r.json().get("response", "").strip().lower()
+        return resp.startswith("yes")
+    except Exception as exc:
+        logger.info(f"Tag comparison failed: {exc}")
+        return False
+
+
+def consolidate_similar_tags() -> dict[str, str]:
+    """Merge similar tags and update the database."""
+    if not OLLAMA_ENABLED:
+        return {}
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT tag FROM job_tags")
+    tags = [r[0] for r in cur.fetchall()]
+    replacements: dict[str, str] = {}
+    for i, t1 in enumerate(tags):
+        for t2 in tags[i + 1 :]:
+            if t2 in replacements or t1 in replacements:
+                continue
+            if not _has_common_substring(t1, t2):
+                continue
+            if are_tags_equivalent(t1, t2):
+                keep = t1 if len(t1) <= len(t2) else t2
+                drop = t2 if keep == t1 else t1
+                replacements[drop] = keep
+                app_main.log_progress(f"Consolidating '{drop}' -> '{keep}'")
+    for old, new in replacements.items():
+        cur.execute("UPDATE job_tags SET tag=? WHERE tag=?", (new, old))
+        cur.execute("SELECT id, tags FROM feedback WHERE tags LIKE ?", (f"%{old}%",))
+        rows = cur.fetchall()
+        for fid, tag_str in rows:
+            tag_list = [
+                new if t.strip() == old else t.strip() for t in str(tag_str).split(",") if t.strip()
+            ]
+            cur.execute("UPDATE feedback SET tags=? WHERE id=?", (",".join(tag_list), fid))
+    conn.commit()
+    conn.close()
+    return replacements
+
