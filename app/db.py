@@ -439,32 +439,41 @@ def tag_significance() -> List[Dict[str, float | int | str]]:
     conn = connect_db()
     cur = conn.cursor()
 
-    cur.execute(
-        "SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=1"
-    )
+    cur.execute("SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=1")
     total_pos = cur.fetchone()[0] or 0
-    cur.execute(
-        "SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=0"
-    )
+    cur.execute("SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=0")
     total_neg = cur.fetchone()[0] or 0
 
+    tag_counts: Dict[str, Dict[str, int]] = {}
+
     cur.execute(
-        """
-        SELECT t.tag,
-               SUM(CASE WHEN f.liked=1 THEN 1 ELSE 0 END) AS pos,
-               SUM(CASE WHEN f.liked=0 THEN 1 ELSE 0 END) AS neg
-        FROM job_tags t
-        JOIN feedback f ON t.job_id = f.job_id
-        GROUP BY t.tag
-        """
+        "SELECT t.tag, f.liked FROM job_tags t JOIN feedback f ON t.job_id = f.job_id"
     )
-    rows = cur.fetchall()
+    for tag, liked in cur.fetchall():
+        entry = tag_counts.setdefault(tag, {"pos": 0, "neg": 0})
+        if liked:
+            entry["pos"] += 1
+        else:
+            entry["neg"] += 1
+
+    cur.execute("SELECT liked, tags FROM feedback")
+    for liked, tag_str in cur.fetchall():
+        for t in str(tag_str or "").split(","):
+            tag = t.strip()
+            if not tag:
+                continue
+            entry = tag_counts.setdefault(tag, {"pos": 0, "neg": 0})
+            if liked:
+                entry["pos"] += 1
+            else:
+                entry["neg"] += 1
+
     conn.close()
 
     stats: List[Dict[str, float | int | str]] = []
-    for tag, pos, neg in rows:
-        pos = int(pos or 0)
-        neg = int(neg or 0)
+    for tag, counts in tag_counts.items():
+        pos = counts["pos"]
+        neg = counts["neg"]
         tp = pos
         fp = neg
         fn = total_pos - pos

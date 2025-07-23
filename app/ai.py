@@ -149,6 +149,7 @@ def clean_title(title: str) -> str:
 
 from typing import Optional, Tuple
 import re
+from difflib import SequenceMatcher
 
 
 def infer_salary(text: str) -> Optional[Tuple[float, float]]:
@@ -335,13 +336,20 @@ def regenerate_job_ai(job_id: int) -> None:
     conn.commit()
     conn.close()
 
-def _has_common_substring(a: str, b: str, length: int = 3) -> bool:
-    a = re.sub(r"[^a-z0-9]", "", a.lower())
-    b = re.sub(r"[^a-z0-9]", "", b.lower())
-    for i in range(len(a) - length + 1):
-        if a[i : i + length] in b:
-            return True
-    return False
+def _likely_related(a: str, b: str) -> bool:
+    """Return True if the tags share significant text overlap."""
+    a_norm = re.sub(r"[^a-z0-9 ]+", " ", a.lower()).strip()
+    b_norm = re.sub(r"[^a-z0-9 ]+", " ", b.lower()).strip()
+    if not a_norm or not b_norm:
+        return False
+    if a_norm in b_norm or b_norm in a_norm:
+        return True
+    tokens_a = set(a_norm.split())
+    tokens_b = set(b_norm.split())
+    if tokens_a <= tokens_b or tokens_b <= tokens_a:
+        return True
+    sm = SequenceMatcher(None, a_norm, b_norm)
+    return sm.ratio() >= 0.85
 
 
 def are_tags_equivalent(tag1: str, tag2: str) -> bool:
@@ -381,7 +389,7 @@ def consolidate_similar_tags() -> dict[str, str]:
         for t2 in tags[i + 1 :]:
             if t2 in replacements or t1 in replacements:
                 continue
-            if not _has_common_substring(t1, t2):
+            if not _likely_related(t1, t2):
                 continue
             if are_tags_equivalent(t1, t2):
                 keep = t1 if len(t1) <= len(t2) else t2
