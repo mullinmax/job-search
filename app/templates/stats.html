@@ -80,17 +80,24 @@
     <button class="btn btn-primary btn-sm" type="submit">Retrain Model</button>
   </form>
 </div>
-{% if model_stats.total > 0 %}
-<ul>
-  <li>Evaluated on {{ model_stats.total }} samples</li>
-  <li>Accuracy: {{ '{:.0%}'.format(model_stats.accuracy) }}</li>
-  <li>Precision: {{ '{:.0%}'.format(model_stats.precision) }}</li>
-  <li>Recall: {{ '{:.0%}'.format(model_stats.recall) }}</li>
-  <li>True Positives: {{ model_stats.tp }}</li>
-  <li>True Negatives: {{ model_stats.tn }}</li>
-  <li>False Positives: {{ model_stats.fp }}</li>
-  <li>False Negatives: {{ model_stats.fn }}</li>
-</ul>
+{% if model_stats.models %}
+<p>Active model: {{ model_stats.model_name }}</p>
+<table class="table table-sm data-table">
+  <thead>
+    <tr><th>Model</th><th>Acc</th><th>Prec</th><th>Recall</th><th>F1</th></tr>
+  </thead>
+  <tbody>
+  {% for m in model_stats.models %}
+  <tr{% if m.name == model_stats.name %} class="table-primary"{% endif %}>
+    <td>{{ m.description }}</td>
+    <td>{{ '{:.0%}'.format(m.accuracy) }}</td>
+    <td>{{ '{:.0%}'.format(m.precision) }}</td>
+    <td>{{ '{:.0%}'.format(m.recall) }}</td>
+    <td>{{ '{:.0%}'.format(m.f1) }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
 {% else %}
 <p>Not enough data available to evaluate the model.</p>
 {% endif %}
