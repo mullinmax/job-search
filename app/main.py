@@ -41,6 +41,7 @@ from .db import (
     list_jobs_by_feedback,
     list_liked_jobs,
     aggregate_job_stats,
+    tag_significance,
     increment_rating_count,
     record_feedback,
     cleanup_jobs,
@@ -358,14 +359,31 @@ def feedback(
 def stats(request: Request):
     jobs = list_jobs_by_feedback()
     agg = aggregate_job_stats()
+    tag_stats_raw = tag_significance()
     predictions = predict_unrated()
     model_stats = evaluate_model()
+    pos: List[Dict] = []
+    neg: List[Dict] = []
+    neutral: List[Dict] = []
+    for t in tag_stats_raw:
+        phi = float(t.get("phi", 0))
+        if phi > 0.1:
+            pos.append(t)
+        elif phi < -0.1:
+            neg.append(t)
+        else:
+            neutral.append(t)
+    pos.sort(key=lambda x: (-(x["phi"]), -(x["positive"] + x["negative"])))
+    neg.sort(key=lambda x: (x["phi"], -(x["positive"] + x["negative"])))
+    neutral.sort(key=lambda x: -(x["positive"] + x["negative"]))
+    tag_stats = {"positive": pos, "negative": neg, "neutral": neutral}
     return templates.TemplateResponse(
         "stats.html",
         {
             "request": request,
             "jobs": jobs,
             "stats": agg,
+            "tag_stats": tag_stats,
             "predictions": predictions,
             "model_stats": model_stats,
             "container_class": "container-fluid",

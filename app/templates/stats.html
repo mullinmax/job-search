@@ -74,6 +74,61 @@
 
 <p>Average salary (where provided): {{ format_salary(stats.avg_min_pay, stats.avg_max_pay, 'USD') }}</p>
 
+<h2 class="mt-5">Tag Impact</h2>
+<div class="row">
+  <div class="col-md-4">
+    <h4>Matches</h4>
+    <table class="table table-sm data-table">
+      <thead>
+        <tr><th>Tag</th><th>&Phi;</th><th>Count</th></tr>
+      </thead>
+      <tbody>
+      {% for t in tag_stats.positive %}
+      <tr>
+        <td>{{ t.tag }}</td>
+        <td>{{ '{:.2f}'.format(t.phi) }}</td>
+        <td>{{ t.positive + t.negative }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="col-md-4">
+    <h4>Neutral</h4>
+    <table class="table table-sm data-table">
+      <thead>
+        <tr><th>Tag</th><th>&Phi;</th><th>Count</th></tr>
+      </thead>
+      <tbody>
+      {% for t in tag_stats.neutral %}
+      <tr>
+        <td>{{ t.tag }}</td>
+        <td>{{ '{:.2f}'.format(t.phi) }}</td>
+        <td>{{ t.positive + t.negative }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="col-md-4">
+    <h4>Non-Matches</h4>
+    <table class="table table-sm data-table">
+      <thead>
+        <tr><th>Tag</th><th>&Phi;</th><th>Count</th></tr>
+      </thead>
+      <tbody>
+      {% for t in tag_stats.negative %}
+      <tr>
+        <td>{{ t.tag }}</td>
+        <td>{{ '{:.2f}'.format(t.phi) }}</td>
+        <td>{{ t.positive + t.negative }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <h2 class="mt-5">Model Performance</h2>
 <div class="mb-3">
   <form class="d-inline" method="post" action="/train">

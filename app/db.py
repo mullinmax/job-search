@@ -434,6 +434,50 @@ def aggregate_job_stats() -> Dict:
     }
 
 
+def tag_significance() -> List[Dict[str, float | int | str]]:
+    """Return tag correlation stats using the phi coefficient."""
+    conn = connect_db()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=1"
+    )
+    total_pos = cur.fetchone()[0] or 0
+    cur.execute(
+        "SELECT COUNT(DISTINCT job_id) FROM feedback WHERE liked=0"
+    )
+    total_neg = cur.fetchone()[0] or 0
+
+    cur.execute(
+        """
+        SELECT t.tag,
+               SUM(CASE WHEN f.liked=1 THEN 1 ELSE 0 END) AS pos,
+               SUM(CASE WHEN f.liked=0 THEN 1 ELSE 0 END) AS neg
+        FROM job_tags t
+        JOIN feedback f ON t.job_id = f.job_id
+        GROUP BY t.tag
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    stats: List[Dict[str, float | int | str]] = []
+    for tag, pos, neg in rows:
+        pos = int(pos or 0)
+        neg = int(neg or 0)
+        tp = pos
+        fp = neg
+        fn = total_pos - pos
+        tn = total_neg - neg
+        denom = (tp + fp) * (tp + fn) * (tn + fp) * (tn + fn)
+        phi = 0.0
+        if denom > 0:
+            phi = (tp * tn - fp * fn) / (denom ** 0.5)
+        stats.append({"tag": tag, "positive": pos, "negative": neg, "phi": phi})
+
+    return stats
+
+
 def increment_rating_count(job_id: int) -> None:
     conn = connect_db()
     cur = conn.cursor()
