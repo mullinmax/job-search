@@ -260,7 +260,7 @@ def get_random_job() -> Optional[Dict]:
         if job.get("description"):
             job["description"] = sanitize_html(job["description"])
         if job.get("tags"):
-            job["tags"] = [t for t in str(job["tags"]).split(',') if t]
+            job["tags"] = [t for t in str(job["tags"]).split(",") if t]
         else:
             job["tags"] = []
         jobs.append(job)
@@ -325,7 +325,7 @@ def get_job(job_id: int) -> Optional[Dict]:
         if job.get("description"):
             job["description"] = sanitize_html(job["description"])
         if job.get("tags"):
-            job["tags"] = [t for t in str(job["tags"]).split(',') if t]
+            job["tags"] = [t for t in str(job["tags"]).split(",") if t]
         else:
             job["tags"] = []
         if _model is not None and job.get("embedding"):
@@ -486,6 +486,43 @@ def record_feedback(
         Thread(target=_train_async, daemon=True).start()
 
 
+def update_feedback(job_id: int, liked: bool, tags: List[str]) -> None:
+    """Update existing feedback while keeping the original timestamp."""
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT rated_at FROM feedback WHERE job_id=? ORDER BY rated_at LIMIT 1",
+        (job_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        record_feedback(job_id, liked, tags)
+        return
+    rated_at = row[0]
+    cur.execute("DELETE FROM feedback WHERE job_id=?", (job_id,))
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,?)",
+        (job_id, int(liked), ",".join(tags or []), rated_at),
+    )
+    conn.commit()
+    conn.close()
+    train_model()
+
+
+def save_feedback(job_id: int, liked: bool, tags: List[str] | None) -> None:
+    """Insert or update feedback depending on whether it exists."""
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM feedback WHERE job_id=? LIMIT 1", (job_id,))
+    exists = cur.fetchone() is not None
+    conn.close()
+    if exists:
+        update_feedback(job_id, liked, tags or [])
+    else:
+        record_feedback(job_id, liked, tags or [])
+
+
 def cleanup_jobs() -> int:
     conn = connect_db()
     cur = conn.cursor()
@@ -602,7 +639,11 @@ def find_duplicate_jobs(threshold: float = 0.85) -> List[Tuple[Dict, Dict, float
     if df.empty:
         return []
     texts = (
-        df["title"].fillna("") + " " + df["company"].fillna("") + " " + df["description"].fillna("")
+        df["title"].fillna("")
+        + " "
+        + df["company"].fillna("")
+        + " "
+        + df["description"].fillna("")
     ).str.lower()
     vec = TfidfVectorizer().fit_transform(texts)
     sim = cosine_similarity(vec)

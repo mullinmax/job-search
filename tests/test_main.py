@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Import the module fresh for each test to respect DATABASE patching
 
+
 @pytest.fixture
 def main(tmp_path, monkeypatch):
     db_path = tmp_path / "test.db"
@@ -54,9 +55,7 @@ def test_init_db_adds_tags_column(main):
         )
         """
     )
-    cur.execute(
-        "INSERT INTO feedback(job_id, liked, rated_at) VALUES(1, 1, 0)"
-    )
+    cur.execute("INSERT INTO feedback(job_id, liked, rated_at) VALUES(1, 1, 0)")
     conn.commit()
     conn.close()
 
@@ -75,21 +74,23 @@ def test_init_db_adds_tags_column(main):
 
 def test_save_and_get_random_job(main):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "test",
-            "title": "Data Engineer",
-            "company": "ACME",
-            "location": "Remote",
-            "date_posted": "today",
-            "description": "desc",
-            "interval": "year",
-            "min_amount": 100,
-            "max_amount": 200,
-            "currency": "USD",
-            "job_url": "http://example.com/1",
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "test",
+                "title": "Data Engineer",
+                "company": "ACME",
+                "location": "Remote",
+                "date_posted": "today",
+                "description": "desc",
+                "interval": "year",
+                "min_amount": 100,
+                "max_amount": 200,
+                "currency": "USD",
+                "job_url": "http://example.com/1",
+            }
+        ]
+    )
     main.save_jobs(df)
     job = main.get_random_job()
     assert job["title"] == "Data Engineer"
@@ -98,34 +99,36 @@ def test_save_and_get_random_job(main):
 
 def test_save_jobs_dedup_by_url(main):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Engineer",
-            "company": "A",
-            "location": "L",
-            "date_posted": "2024-01-01",
-            "description": "old",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://dup.com/1",
-        },
-        {
-            "site": "t",
-            "title": "Engineer",
-            "company": "A",
-            "location": "L",
-            "date_posted": "2024-02-01",
-            "description": "new",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://dup.com/1",
-        },
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Engineer",
+                "company": "A",
+                "location": "L",
+                "date_posted": "2024-01-01",
+                "description": "old",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://dup.com/1",
+            },
+            {
+                "site": "t",
+                "title": "Engineer",
+                "company": "A",
+                "location": "L",
+                "date_posted": "2024-02-01",
+                "description": "new",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://dup.com/1",
+            },
+        ]
+    )
     main.save_jobs(df)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
@@ -137,34 +140,36 @@ def test_save_jobs_dedup_by_url(main):
 
 def test_save_jobs_dedup_by_description(main):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Engineer",
-            "company": "A",
-            "location": "L",
-            "date_posted": "2024-01-01",
-            "description": "same desc",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://desc.com/1",
-        },
-        {
-            "site": "t",
-            "title": "Engineer",
-            "company": "A",
-            "location": "L",
-            "date_posted": "2024-02-01",
-            "description": "same desc",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://desc.com/2",
-        },
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Engineer",
+                "company": "A",
+                "location": "L",
+                "date_posted": "2024-01-01",
+                "description": "same desc",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://desc.com/1",
+            },
+            {
+                "site": "t",
+                "title": "Engineer",
+                "company": "A",
+                "location": "L",
+                "date_posted": "2024-02-01",
+                "description": "same desc",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://desc.com/2",
+            },
+        ]
+    )
     main.save_jobs(df)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
@@ -176,21 +181,23 @@ def test_save_jobs_dedup_by_description(main):
 
 def test_get_random_job_sanitizes_html(main):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Eng",
-            "company": "C",
-            "location": "L",
-            "date_posted": "d",
-            "description": "<script>alert(1)</script><b>good</b>",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://safe.com/1",
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Eng",
+                "company": "C",
+                "location": "L",
+                "date_posted": "d",
+                "description": "<script>alert(1)</script><b>good</b>",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://safe.com/1",
+            }
+        ]
+    )
     main.save_jobs(df)
     job = main.get_random_job()
     assert "<script" not in job["description"]
@@ -296,23 +303,27 @@ def test_fetch_jobs_task(main, monkeypatch):
     main.init_db()
 
     def fake_scrape_jobs(site_name, **kwargs):
-        return pd.DataFrame([
-            {
-                "site": site_name,
-                "title": "Title",
-                "company": "Comp",
-                "location": "Loc",
-                "date_posted": "d",
-                "description": "desc",
-                "interval": "year",
-                "min_amount": 1,
-                "max_amount": 2,
-                "currency": "USD",
-                "job_url": f"http://example.com/{site_name}",
-            }
-        ])
+        return pd.DataFrame(
+            [
+                {
+                    "site": site_name,
+                    "title": "Title",
+                    "company": "Comp",
+                    "location": "Loc",
+                    "date_posted": "d",
+                    "description": "desc",
+                    "interval": "year",
+                    "min_amount": 1,
+                    "max_amount": 2,
+                    "currency": "USD",
+                    "job_url": f"http://example.com/{site_name}",
+                }
+            ]
+        )
 
-    monkeypatch.setattr(main, "scrape_with_jobspy", lambda *a, **k: fake_scrape_jobs(a[0]))
+    monkeypatch.setattr(
+        main, "scrape_with_jobspy", lambda *a, **k: fake_scrape_jobs(a[0])
+    )
     monkeypatch.setattr(main, "scrape_with_linkedin", lambda *a, **k: pd.DataFrame())
     monkeypatch.setattr(main, "scrape_with_jobfunnel", lambda *a, **k: pd.DataFrame())
     monkeypatch.setattr(time, "sleep", lambda x: None)
@@ -331,47 +342,49 @@ def test_fetch_jobs_task(main, monkeypatch):
 
 def test_cleanup_jobs(main):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Dev",
-            "company": "Comp",
-            "location": "L",
-            "date_posted": "d",
-            "description": "",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://example.com/1",
-        },
-        {
-            "site": "t",
-            "title": "Dev",
-            "company": "Comp",
-            "location": "L",
-            "date_posted": "d",
-            "description": "desc",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://example.com/2",
-        },
-        {
-            "site": "t",
-            "title": "Dev",
-            "company": "Comp",
-            "location": "L",
-            "date_posted": "d",
-            "description": "desc2",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://example.com/3",
-        },
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Dev",
+                "company": "Comp",
+                "location": "L",
+                "date_posted": "d",
+                "description": "",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://example.com/1",
+            },
+            {
+                "site": "t",
+                "title": "Dev",
+                "company": "Comp",
+                "location": "L",
+                "date_posted": "d",
+                "description": "desc",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://example.com/2",
+            },
+            {
+                "site": "t",
+                "title": "Dev",
+                "company": "Comp",
+                "location": "L",
+                "date_posted": "d",
+                "description": "desc2",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://example.com/3",
+            },
+        ]
+    )
     main.save_jobs(df)
     deleted = main.cleanup_jobs()
     conn = sqlite3.connect(main.DATABASE)
@@ -385,47 +398,49 @@ def test_cleanup_jobs(main):
 
 def test_aggregate_job_stats(main):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "a",
-            "title": "T1",
-            "company": "C1",
-            "location": "L",
-            "date_posted": "2024-01-01",
-            "description": "d",
-            "interval": "year",
-            "min_amount": 100,
-            "max_amount": 200,
-            "currency": "USD",
-            "job_url": "http://x.com/1",
-        },
-        {
-            "site": "b",
-            "title": "T2",
-            "company": "C2",
-            "location": "L",
-            "date_posted": "2024-01-02",
-            "description": "d2",
-            "interval": "year",
-            "min_amount": 200,
-            "max_amount": 300,
-            "currency": "USD",
-            "job_url": "http://x.com/2",
-        },
-        {
-            "site": "a",
-            "title": "T3",
-            "company": "C3",
-            "location": "L",
-            "date_posted": "2024-01-01",
-            "description": "d3",
-            "interval": "year",
-            "min_amount": None,
-            "max_amount": None,
-            "currency": None,
-            "job_url": "http://x.com/3",
-        },
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "a",
+                "title": "T1",
+                "company": "C1",
+                "location": "L",
+                "date_posted": "2024-01-01",
+                "description": "d",
+                "interval": "year",
+                "min_amount": 100,
+                "max_amount": 200,
+                "currency": "USD",
+                "job_url": "http://x.com/1",
+            },
+            {
+                "site": "b",
+                "title": "T2",
+                "company": "C2",
+                "location": "L",
+                "date_posted": "2024-01-02",
+                "description": "d2",
+                "interval": "year",
+                "min_amount": 200,
+                "max_amount": 300,
+                "currency": "USD",
+                "job_url": "http://x.com/2",
+            },
+            {
+                "site": "a",
+                "title": "T3",
+                "company": "C3",
+                "location": "L",
+                "date_posted": "2024-01-01",
+                "description": "d3",
+                "interval": "year",
+                "min_amount": None,
+                "max_amount": None,
+                "currency": None,
+                "job_url": "http://x.com/3",
+            },
+        ]
+    )
     main.save_jobs(df)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
@@ -472,21 +487,23 @@ def test_render_markdown_prefix(main):
 
 def test_clear_ai_data_and_reprocess_tasks(main, monkeypatch):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "T1",
-            "company": "C1",
-            "location": "L",
-            "date_posted": "d",
-            "description": "d1",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://e.com/1",
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "T1",
+                "company": "C1",
+                "location": "L",
+                "date_posted": "d",
+                "description": "d1",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://e.com/1",
+            }
+        ]
+    )
     main.save_jobs(df)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
@@ -524,6 +541,7 @@ def test_evaluate_model(main):
     import importlib
     import app.config as cfg
     import app.model as model_mod
+
     importlib.reload(cfg)
     importlib.reload(model_mod)
     main.train_model = model_mod.train_model
@@ -592,21 +610,23 @@ def test_evaluate_model(main):
 
 def test_list_liked_jobs(main):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Dev",
-            "company": "C",
-            "location": "L",
-            "date_posted": "d",
-            "description": "desc",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://e.com/liked",
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Dev",
+                "company": "C",
+                "location": "L",
+                "date_posted": "d",
+                "description": "desc",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://e.com/liked",
+            }
+        ]
+    )
     main.save_jobs(df)
     ts = int(pd.Timestamp("2025-07-21").timestamp())
     main.record_feedback(1, True, "", rated_at=ts)
@@ -617,10 +637,36 @@ def test_list_liked_jobs(main):
 
 def test_find_duplicate_jobs(main):
     main.init_db()
-    df = pd.DataFrame([
-        {"site": "a", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "work on things", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/1"},
-        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "working on things", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "a",
+                "title": "Engineer",
+                "company": "X",
+                "location": "L",
+                "date_posted": "d",
+                "description": "work on things",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://a.com/1",
+            },
+            {
+                "site": "b",
+                "title": "Engineer",
+                "company": "X",
+                "location": "L",
+                "date_posted": "d",
+                "description": "working on things",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://a.com/2",
+            },
+        ]
+    )
     main.save_jobs(df)
     pairs = main.find_duplicate_jobs(0.5)
     assert pairs
@@ -630,10 +676,36 @@ def test_find_duplicate_jobs(main):
 
 def test_mark_not_duplicates(main):
     main.init_db()
-    df = pd.DataFrame([
-        {"site": "a", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "desc", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/1"},
-        {"site": "b", "title": "Engineer", "company": "X", "location": "L", "date_posted": "d", "description": "desc slightly different", "interval": "year", "min_amount": 1, "max_amount": 2, "currency": "USD", "job_url": "http://a.com/2"},
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "a",
+                "title": "Engineer",
+                "company": "X",
+                "location": "L",
+                "date_posted": "d",
+                "description": "desc",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://a.com/1",
+            },
+            {
+                "site": "b",
+                "title": "Engineer",
+                "company": "X",
+                "location": "L",
+                "date_posted": "d",
+                "description": "desc slightly different",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://a.com/2",
+            },
+        ]
+    )
     main.save_jobs(df)
     pairs = main.find_duplicate_jobs(0.5)
     assert pairs
@@ -678,6 +750,7 @@ def test_train_model_single_class(main):
 
     import app.model as model_mod
     import app.db as db_mod
+
     model_mod._model = None
     db_mod._model = None
     model_mod.DATABASE = main.DATABASE
@@ -692,6 +765,7 @@ def test_predict_unrated_skips_invalid_embeddings(main):
     main.init_db()
     import importlib
     import app.model as model_mod
+
     importlib.reload(model_mod)
     main.train_model = model_mod.train_model
     main.predict_unrated = model_mod.predict_unrated
@@ -700,10 +774,62 @@ def test_predict_unrated_skips_invalid_embeddings(main):
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
     jobs = [
-        ("t", "J1", "C1", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/1", json.dumps([0.0, 0.0])),
-        ("t", "J2", "C2", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/2", json.dumps([1.0, 1.0])),
-        ("t", "J3", "C3", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/3", json.dumps([0.5, 0.5])),
-        ("t", "J4", "C4", "L", "d", "desc", "year", 1, 2, "USD", "http://e.com/4", json.dumps([])),
+        (
+            "t",
+            "J1",
+            "C1",
+            "L",
+            "d",
+            "desc",
+            "year",
+            1,
+            2,
+            "USD",
+            "http://e.com/1",
+            json.dumps([0.0, 0.0]),
+        ),
+        (
+            "t",
+            "J2",
+            "C2",
+            "L",
+            "d",
+            "desc",
+            "year",
+            1,
+            2,
+            "USD",
+            "http://e.com/2",
+            json.dumps([1.0, 1.0]),
+        ),
+        (
+            "t",
+            "J3",
+            "C3",
+            "L",
+            "d",
+            "desc",
+            "year",
+            1,
+            2,
+            "USD",
+            "http://e.com/3",
+            json.dumps([0.5, 0.5]),
+        ),
+        (
+            "t",
+            "J4",
+            "C4",
+            "L",
+            "d",
+            "desc",
+            "year",
+            1,
+            2,
+            "USD",
+            "http://e.com/4",
+            json.dumps([]),
+        ),
     ]
     for job in jobs:
         cur.execute(
@@ -740,21 +866,23 @@ def test_clean_location(main):
 
 def test_export_likes_formats_fields(main, monkeypatch):
     main.init_db()
-    df = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Dev",
-            "company": "ACME",
-            "location": "Cincinnati, OH, US",
-            "date_posted": "2025-07-20",
-            "description": "d",
-            "interval": "year",
-            "min_amount": 0,
-            "max_amount": 0,
-            "currency": "USD",
-            "job_url": "http://e.com/1",
-        }
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Dev",
+                "company": "ACME",
+                "location": "Cincinnati, OH, US",
+                "date_posted": "2025-07-20",
+                "description": "d",
+                "interval": "year",
+                "min_amount": 0,
+                "max_amount": 0,
+                "currency": "USD",
+                "job_url": "http://e.com/1",
+            }
+        ]
+    )
     main.save_jobs(df)
     ts = int(pd.Timestamp("2025-07-21").timestamp())
     main.record_feedback(1, True, "", rated_at=ts)
@@ -796,38 +924,42 @@ def test_import_custom_csv_marks_match(main):
 
 def test_save_jobs_preserves_feedback_on_dup(main):
     main.init_db()
-    df1 = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Dev",
-            "company": "ACME",
-            "location": "L",
-            "date_posted": "2024-06-01",
-            "description": "old",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://dup.com/1",
-        }
-    ])
+    df1 = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Dev",
+                "company": "ACME",
+                "location": "L",
+                "date_posted": "2024-06-01",
+                "description": "old",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://dup.com/1",
+            }
+        ]
+    )
     ids = main.save_jobs(df1)
     main.record_feedback(ids[0], True, "", rated_at=1000)
-    df2 = pd.DataFrame([
-        {
-            "site": "t",
-            "title": "Dev",
-            "company": "ACME",
-            "location": "L",
-            "date_posted": "2024-06-05",
-            "description": "new",
-            "interval": "year",
-            "min_amount": 1,
-            "max_amount": 2,
-            "currency": "USD",
-            "job_url": "http://dup.com/1",
-        }
-    ])
+    df2 = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "Dev",
+                "company": "ACME",
+                "location": "L",
+                "date_posted": "2024-06-05",
+                "description": "new",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://dup.com/1",
+            }
+        ]
+    )
     main.save_jobs(df2)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
@@ -842,12 +974,34 @@ def test_save_jobs_preserves_feedback_on_dup(main):
 
 def test_dedup_action_keeps_uploaded(main):
     main.init_db()
-    id1 = main.save_jobs(pd.DataFrame([
-        {"site": "upload", "title": "Dev", "company": "A", "job_url": "u1", "description": "x1", "date_posted": "1"}
-    ]))[0]
-    id2 = main.save_jobs(pd.DataFrame([
-        {"site": "t", "title": "Dev", "company": "A", "job_url": "u2", "description": "x2", "date_posted": "0"}
-    ]))[0]
+    id1 = main.save_jobs(
+        pd.DataFrame(
+            [
+                {
+                    "site": "upload",
+                    "title": "Dev",
+                    "company": "A",
+                    "job_url": "u1",
+                    "description": "x1",
+                    "date_posted": "1",
+                }
+            ]
+        )
+    )[0]
+    id2 = main.save_jobs(
+        pd.DataFrame(
+            [
+                {
+                    "site": "t",
+                    "title": "Dev",
+                    "company": "A",
+                    "job_url": "u2",
+                    "description": "x2",
+                    "date_posted": "0",
+                }
+            ]
+        )
+    )[0]
     main.dedup_action(f"{id1},{id2}", 1)
     conn = sqlite3.connect(main.DATABASE)
     cur = conn.cursor()
@@ -859,12 +1013,34 @@ def test_dedup_action_keeps_uploaded(main):
 
 def test_dedup_action_handles_missing_dates(main):
     main.init_db()
-    id1 = main.save_jobs(pd.DataFrame([
-        {"site": "t", "title": "Dev1", "company": "A", "job_url": "d1", "description": "x1", "date_posted": None}
-    ]))[0]
-    id2 = main.save_jobs(pd.DataFrame([
-        {"site": "t", "title": "Dev2", "company": "A", "job_url": "d2", "description": "x2", "date_posted": None}
-    ]))[0]
+    id1 = main.save_jobs(
+        pd.DataFrame(
+            [
+                {
+                    "site": "t",
+                    "title": "Dev1",
+                    "company": "A",
+                    "job_url": "d1",
+                    "description": "x1",
+                    "date_posted": None,
+                }
+            ]
+        )
+    )[0]
+    id2 = main.save_jobs(
+        pd.DataFrame(
+            [
+                {
+                    "site": "t",
+                    "title": "Dev2",
+                    "company": "A",
+                    "job_url": "d2",
+                    "description": "x2",
+                    "date_posted": None,
+                }
+            ]
+        )
+    )[0]
     # Should not raise even when dates are missing
     main.dedup_action(f"{id1},{id2}", 1)
     conn = sqlite3.connect(main.DATABASE)
@@ -880,6 +1056,7 @@ def test_model_uses_tags(main):
     import importlib
     import json
     import app.model as model_mod
+
     importlib.reload(model_mod)
     main.train_model = model_mod.train_model
     main.predict_job = model_mod.predict_job
@@ -898,7 +1075,10 @@ def test_model_uses_tags(main):
         ("t", "J1", "C", "L", "d", "desc", "year", 1, 2, "USD", "u1"),
     )
     j1 = cur.lastrowid
-    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j1, json.dumps([1.0, 0.0])))
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (j1, json.dumps([1.0, 0.0])),
+    )
     cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'python')", (j1,))
     cur.execute(
         "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,0)",
@@ -914,7 +1094,10 @@ def test_model_uses_tags(main):
         ("t", "J2", "C", "L", "d", "desc", "year", 1, 2, "USD", "u2"),
     )
     j2 = cur.lastrowid
-    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j2, json.dumps([1.0, 0.0])))
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (j2, json.dumps([1.0, 0.0])),
+    )
     cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'java')", (j2,))
     cur.execute(
         "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,0)",
@@ -930,7 +1113,10 @@ def test_model_uses_tags(main):
         ("t", "J3", "C", "L", "d", "desc", "year", 1, 2, "USD", "u3"),
     )
     j3 = cur.lastrowid
-    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j3, json.dumps([1.0, 0.0])))
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (j3, json.dumps([1.0, 0.0])),
+    )
     cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'python')", (j3,))
 
     cur.execute(
@@ -941,7 +1127,10 @@ def test_model_uses_tags(main):
         ("t", "J4", "C", "L", "d", "desc", "year", 1, 2, "USD", "u4"),
     )
     j4 = cur.lastrowid
-    cur.execute("INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)", (j4, json.dumps([1.0, 0.0])))
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (j4, json.dumps([1.0, 0.0])),
+    )
     cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(?, 'java')", (j4,))
     conn.commit()
     conn.close()
@@ -956,3 +1145,104 @@ def test_model_uses_tags(main):
     assert pred_py[0] != pred_java[0]
 
 
+def test_save_feedback_updates_existing(main):
+    main.init_db()
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "Dev", "C", "L", "d", "desc", "year", 1, 2, "USD", "u1"),
+    )
+    job_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+
+    main.save_feedback(job_id, True, ["a"])
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT liked, tags, rated_at FROM feedback WHERE job_id=?", (job_id,))
+    first = cur.fetchone()
+    conn.close()
+
+    time.sleep(1)
+    main.save_feedback(job_id, False, ["b"])
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT liked, tags, rated_at FROM feedback WHERE job_id=?", (job_id,))
+    row = cur.fetchone()
+    cur.execute("SELECT rating_count FROM jobs WHERE id=?", (job_id,))
+    count = cur.fetchone()[0]
+    conn.close()
+    assert row[0] == 0
+    assert row[1] == "b"
+    assert row[2] == first[2]
+    assert count == 1
+
+
+def test_find_outliers(main):
+    main.init_db()
+    import json as js
+
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    # Positive job
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "P", "C", "L", "d", "desc", "year", 1, 2, "USD", "u1"),
+    )
+    j1 = cur.lastrowid
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (j1, js.dumps([1.0, 1.0])),
+    )
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,?)",
+        (j1, 1, "", 0),
+    )
+    # Negative job
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "N", "C", "L", "d", "desc", "year", 1, 2, "USD", "u2"),
+    )
+    j2 = cur.lastrowid
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (j2, js.dumps([0.0, 0.0])),
+    )
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,?)",
+        (j2, 0, "", 0),
+    )
+    # Outlier: negative label but embedding like positive
+    cur.execute(
+        """
+        INSERT INTO jobs(site,title,company,location,date_posted,description,interval,min_amount,max_amount,currency,job_url)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        ("t", "O", "C", "L", "d", "desc", "year", 1, 2, "USD", "u3"),
+    )
+    j3 = cur.lastrowid
+    cur.execute(
+        "INSERT INTO embeddings(job_id, embedding) VALUES(?, ?)",
+        (j3, js.dumps([1.0, 1.0])),
+    )
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(?,?,?,?)",
+        (j3, 0, "", 0),
+    )
+    conn.commit()
+    conn.close()
+
+    main.train_model()
+    outliers = main.find_outliers()
+    ids = {o["id"] for o in outliers}
+    assert j3 in ids
