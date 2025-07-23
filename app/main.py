@@ -59,6 +59,7 @@ from .ai import (
     render_markdown,
     process_all_jobs,
     regenerate_job_ai,
+    consolidate_similar_tags,
 )
 from .utils import sanitize_html
 from .model import train_model, predict_unrated, evaluate_model, find_outliers
@@ -464,6 +465,15 @@ def regen_jobs_task(job_ids: List[int]) -> None:
     log_progress("Done")
 
 
+def consolidate_tags_task() -> None:
+    """Run tag consolidation using Ollama."""
+    if not OLLAMA_ENABLED:
+        return
+    log_progress("Consolidating tags")
+    consolidate_similar_tags()
+    log_progress("Done")
+
+
 @app.post("/reprocess", response_class=HTMLResponse)
 def reprocess(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
@@ -491,6 +501,13 @@ def regen_jobs(
 ):
     progress_logs.clear()
     background_tasks.add_task(regen_jobs_task, job_ids)
+    return templates.TemplateResponse("progress.html", {"request": request})
+
+
+@app.post("/consolidate_tags", response_class=HTMLResponse)
+def consolidate_tags_endpoint(request: Request, background_tasks: BackgroundTasks):
+    progress_logs.clear()
+    background_tasks.add_task(consolidate_tags_task)
     return templates.TemplateResponse("progress.html", {"request": request})
 
 
