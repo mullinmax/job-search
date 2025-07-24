@@ -11,10 +11,7 @@
 <form class="mt-3" method="post" action="/delete_ai" onsubmit="return confirm('Delete all summaries and embeddings?');">
   <button class="btn btn-danger" type="submit">Delete AI Data</button>
 </form>
-<form class="mt-3" method="post" action="/delete_tags" onsubmit="return confirm('Delete all tags?');">
-  <button class="btn btn-danger" type="submit">Delete Tags</button>
-</form>
-<form class="mt-3" method="post" action="/consolidate_tags" onsubmit="return confirm('Merge similar tags?');">
+<form class="mt-3" method="get" action="/consolidate_tags">
   <button class="btn btn-secondary" type="submit">Consolidate Tags</button>
 </form>
 <form class="mt-3" method="get" action="/export_likes">

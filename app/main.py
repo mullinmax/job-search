@@ -47,7 +47,10 @@ from .db import (
     cleanup_jobs,
     delete_job,
     mark_not_duplicates,
+    mark_not_tag_merge,
+    merge_tags,
     find_duplicate_jobs,
+    find_similar_tags,
     _transfer_feedback,
     save_feedback,
 )
@@ -480,14 +483,39 @@ def consolidate_tags_task() -> None:
     consolidate_similar_tags()
     log_progress("Done")
 
+def add_tags_task(job_ids: List[int]) -> None:
+    """Generate tags for the given roles."""
+    if not OLLAMA_ENABLED:
+        return
+    conn = connect_db()
+    cur = conn.cursor()
+    for jid in job_ids:
+        cur.execute("SELECT description FROM jobs WHERE id=?", (jid,))
+        row = cur.fetchone()
+        if not row or not row[0]:
+            continue
+        tags = generate_tags(row[0])
+        if tags:
+            cur.executemany(
+                "INSERT OR IGNORE INTO job_tags(job_id, tag) VALUES(?, ?)",
+                [(jid, t) for t in tags],
+            )
+    conn.commit()
+    conn.close()
+    log_progress("Done")
 
-def clear_tags_task() -> None:
-    """Remove all stored tags."""
+
+def clear_tags_task(job_ids: Optional[List[int]] = None) -> None:
+    """Remove stored tags. If job_ids is None remove all."""
     log_progress("Deleting tags")
     conn = connect_db()
     cur = conn.cursor()
-    cur.execute("DELETE FROM job_tags")
-    cur.execute("UPDATE feedback SET tags=''")
+    if not job_ids:
+        cur.execute("DELETE FROM job_tags")
+        cur.execute("UPDATE feedback SET tags=''")
+    else:
+        cur.executemany("DELETE FROM job_tags WHERE job_id=?", [(jid,) for jid in job_ids])
+        cur.executemany("UPDATE feedback SET tags='' WHERE job_id=?", [(jid,) for jid in job_ids])
     conn.commit()
     conn.close()
     log_progress("Done")
@@ -523,17 +551,47 @@ def regen_jobs(
     return templates.TemplateResponse("progress.html", {"request": request})
 
 
-@app.post("/consolidate_tags", response_class=HTMLResponse)
-def consolidate_tags_endpoint(request: Request, background_tasks: BackgroundTasks):
+@app.get("/consolidate_tags", response_class=HTMLResponse)
+def consolidate_tags(request: Request):
+    pairs = find_similar_tags()
+    if not pairs:
+        return templates.TemplateResponse(
+            "consolidate.html", {"request": request, "pair": None, "remaining": 0}
+        )
+    pair = pairs[0]
+    return templates.TemplateResponse(
+        "consolidate.html",
+        {
+            "request": request,
+            "pair": pair,
+            "remaining": len(pairs),
+        },
+    )
+
+
+@app.post("/consolidate_tags_action", response_class=HTMLResponse)
+def consolidate_tags_action(pair_tags: str = Form(...), merge: int = Form(...)):
+    t1, t2 = pair_tags.split(",")
+    if merge:
+        keep = t1 if len(t1) <= len(t2) else t2
+        drop = t2 if keep == t1 else t1
+        merge_tags(drop, keep)
+    else:
+        mark_not_tag_merge(t1, t2)
+    return RedirectResponse("/consolidate_tags", status_code=303)
+
+
+@app.post("/add_tags", response_class=HTMLResponse)
+def add_tags(request: Request, background_tasks: BackgroundTasks, job_ids: List[int] = Form(...)):
     progress_logs.clear()
-    background_tasks.add_task(consolidate_tags_task)
+    background_tasks.add_task(add_tags_task, job_ids)
     return templates.TemplateResponse("progress.html", {"request": request})
 
 
 @app.post("/delete_tags", response_class=HTMLResponse)
-def delete_tags(request: Request, background_tasks: BackgroundTasks):
+def delete_tags(request: Request, background_tasks: BackgroundTasks, job_ids: Optional[List[int]] = Form(None)):
     progress_logs.clear()
-    background_tasks.add_task(clear_tags_task)
+    background_tasks.add_task(clear_tags_task, job_ids)
     return templates.TemplateResponse("progress.html", {"request": request})
 
 

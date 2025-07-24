@@ -3,6 +3,7 @@ import sqlite3
 import time
 import random
 from typing import Dict, List, Optional, Tuple
+from difflib import SequenceMatcher
 
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -109,6 +110,15 @@ def init_db() -> None:
             job_id1 INTEGER,
             job_id2 INTEGER,
             PRIMARY KEY(job_id1, job_id2)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS not_tag_merges(
+            tag1 TEXT,
+            tag2 TEXT,
+            PRIMARY KEY(tag1, tag2)
         )
         """
     )
@@ -677,6 +687,67 @@ def mark_not_duplicates(id1: int, id2: int) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def mark_not_tag_merge(tag1: str, tag2: str) -> None:
+    """Record that two tags should not be merged."""
+    if tag1 > tag2:
+        tag1, tag2 = tag2, tag1
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT OR IGNORE INTO not_tag_merges(tag1, tag2) VALUES(?, ?)",
+        (tag1, tag2),
+    )
+    conn.commit()
+    conn.close()
+
+
+def merge_tags(old: str, new: str) -> None:
+    """Replace tag 'old' with 'new' across the database."""
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE job_tags SET tag=? WHERE tag=?", (new, old))
+    cur.execute("SELECT id, tags FROM feedback WHERE tags LIKE ?", (f"%{old}%",))
+    rows = cur.fetchall()
+    for fid, tag_str in rows:
+        tag_list = [
+            new if t.strip() == old else t.strip()
+            for t in str(tag_str or "").split(",")
+            if t.strip()
+        ]
+        cur.execute("UPDATE feedback SET tags=? WHERE id=?", (",".join(tag_list), fid))
+    conn.commit()
+    conn.close()
+
+
+def find_similar_tags(threshold: float = 0.8) -> List[Tuple[str, str, float, float, float, int, int]]:
+    """Return pairs of similar tags with phi stats."""
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT tag FROM job_tags")
+    tags = [r[0] for r in cur.fetchall()]
+    cur.execute("SELECT tag1, tag2 FROM not_tag_merges")
+    ignored = {tuple(sorted(row)) for row in cur.fetchall()}
+    conn.close()
+
+    stats = tag_significance()
+    phi_map = {s["tag"]: (s["phi"], s["positive"] + s["negative"]) for s in stats}
+
+    pairs = []
+    for i, t1 in enumerate(tags):
+        for t2 in tags[i + 1 :]:
+            key = tuple(sorted((t1, t2)))
+            if key in ignored:
+                continue
+            ratio = SequenceMatcher(None, t1.lower(), t2.lower()).ratio()
+            if ratio >= threshold:
+                phi1, c1 = phi_map.get(t1, (0.0, 0))
+                phi2, c2 = phi_map.get(t2, (0.0, 0))
+                pairs.append((t1, t2, ratio, phi1, phi2, c1, c2))
+
+    pairs.sort(key=lambda x: -x[2])
+    return pairs
 
 
 def find_duplicate_jobs(threshold: float = 0.85) -> List[Tuple[Dict, Dict, float]]:
