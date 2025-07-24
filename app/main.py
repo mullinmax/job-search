@@ -481,6 +481,18 @@ def consolidate_tags_task() -> None:
     log_progress("Done")
 
 
+def clear_tags_task() -> None:
+    """Remove all stored tags."""
+    log_progress("Deleting tags")
+    conn = connect_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM job_tags")
+    cur.execute("UPDATE feedback SET tags=''")
+    conn.commit()
+    conn.close()
+    log_progress("Done")
+
+
 @app.post("/reprocess", response_class=HTMLResponse)
 def reprocess(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
@@ -515,6 +527,13 @@ def regen_jobs(
 def consolidate_tags_endpoint(request: Request, background_tasks: BackgroundTasks):
     progress_logs.clear()
     background_tasks.add_task(consolidate_tags_task)
+    return templates.TemplateResponse("progress.html", {"request": request})
+
+
+@app.post("/delete_tags", response_class=HTMLResponse)
+def delete_tags(request: Request, background_tasks: BackgroundTasks):
+    progress_logs.clear()
+    background_tasks.add_task(clear_tags_task)
     return templates.TemplateResponse("progress.html", {"request": request})
 
 
