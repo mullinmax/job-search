@@ -2,8 +2,10 @@
 {% block title %}Job Stats{% endblock %}
 {% block content %}
 <h1 class="mb-4">Job Feedback</h1>
-<form method="post" action="/regen_jobs" onsubmit="return confirm('Regenerate AI data for selected jobs?');">
-  <button class="btn btn-sm btn-secondary mb-2" type="submit">Regenerate Selected</button>
+<form method="post" id="job-actions-form">
+  <button class="btn btn-sm btn-secondary mb-2 me-2" formaction="/regen_jobs" onclick="return confirm('Regenerate AI data for selected jobs?');" type="submit">Regenerate Selected</button>
+  <button class="btn btn-sm btn-primary mb-2 me-2" formaction="/add_tags" onclick="return confirm('Add tags to selected jobs?');" type="submit">Add Tags</button>
+  <button class="btn btn-sm btn-danger mb-2" formaction="/delete_tags" onclick="return confirm('Delete tags for selected jobs?');" type="submit">Delete Tags</button>
   <table class="table table-striped data-table">
     <thead>
       <tr><th>Select</th><th>#</th><th>Title</th><th>Company</th><th>Posted</th><th>AI</th><th></th></tr>

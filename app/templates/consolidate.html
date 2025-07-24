@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Review Tag Consolidation{% endblock %}
+{% block content %}
+<h1 class="mb-4">Possible Tag Consolidation</h1>
+{% if not pair %}
+<p>No similar tags found.</p>
+{% else %}
+<p class="mb-3"><strong>{{ remaining }}</strong> potential pair{{ remaining!=1 and 's' or '' }} remaining.</p>
+<div class="card mb-3">
+  <div class="card-body">
+    <p><strong>{{ pair[0] }}</strong> (Φ={{ '{:.2f}'.format(pair[3]) }}, count={{ pair[5] }})</p>
+    <p><strong>{{ pair[1] }}</strong> (Φ={{ '{:.2f}'.format(pair[4]) }}, count={{ pair[6] }})</p>
+    <p>Similarity: {{ '{:.2f}'.format(pair[2]) }}</p>
+  </div>
+</div>
+<form method="post" action="/consolidate_tags_action" class="mt-3 d-flex justify-content-center gap-3">
+  <input type="hidden" name="pair_tags" value="{{ pair[0] }},{{ pair[1] }}" />
+  <button class="btn btn-success" name="merge" value="1" type="submit">Merge</button>
+  <button class="btn btn-secondary" name="merge" value="0" type="submit">Keep Separate</button>
+</form>
+{% endif %}
+{% endblock %}
