@@ -536,6 +536,46 @@ def test_clear_ai_data_and_reprocess_tasks(main, monkeypatch):
     assert main.progress_logs[-1] == "Done"
 
 
+def test_clear_tags_task(main):
+    main.init_db()
+    df = pd.DataFrame(
+        [
+            {
+                "site": "t",
+                "title": "T1",
+                "company": "C1",
+                "location": "L",
+                "date_posted": "d",
+                "description": "d1",
+                "interval": "year",
+                "min_amount": 1,
+                "max_amount": 2,
+                "currency": "USD",
+                "job_url": "http://e.com/1",
+            }
+        ]
+    )
+    main.save_jobs(df)
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("INSERT INTO job_tags(job_id, tag) VALUES(1, 'python')")
+    cur.execute(
+        "INSERT INTO feedback(job_id, liked, tags, rated_at) VALUES(1,1,'python',0)"
+    )
+    conn.commit()
+    conn.close()
+
+    main.clear_tags_task()
+
+    conn = sqlite3.connect(main.DATABASE)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM job_tags")
+    assert cur.fetchone()[0] == 0
+    cur.execute("SELECT tags FROM feedback")
+    assert cur.fetchone()[0] == ""
+    conn.close()
+
+
 def test_evaluate_model(main):
     main.init_db()
     import importlib
